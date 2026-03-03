@@ -17,121 +17,148 @@ create_state_space <- function(
   # G_blocks <- lapply(psi[1:(m+1)], function(p) p * diag(n_loc))
   # G <- do.call(cbind, G_blocks)
   
-  # -------- F matrix --------
-  # State Transition
-  F <- matrix(0, state_dim, state_dim)
-
-  for (j in 2:(m+1)) {
-    row_idx <- ((j-1)*n_loc + 1):(j*n_loc)
-    col_idx <- ((j-2)*n_loc + 1):((j-1)*n_loc)
-    F[row_idx, col_idx] <- diag(n_loc)
-  }
+  # # -------- F matrix --------
+  # # State Transition
+  # F <- matrix(0, state_dim, state_dim)
+  # 
+  # for (j in 2:(m+1)) {
+  #   row_idx <- ((j-1)*n_loc + 1):(j*n_loc)
+  #   col_idx <- ((j-2)*n_loc + 1):((j-1)*n_loc)
+  #   F[row_idx, col_idx] <- diag(n_loc)
+  # }
   
-  # -------- H matrix --------
-  # Mean structure
-  H <- matrix(0, state_dim, n_loc)
-  H[1:n_loc, 1:n_loc] <- diag(n_loc)
+  # # -------- H matrix --------
+  # # Mean structure
+  # H <- matrix(0, state_dim, n_loc)
+  # H[1:n_loc, 1:n_loc] <- diag(n_loc)
   
   return(list(
     # G = G,
-    F = F,
-    H = H,
-    R = R,
+    # F = F,
     psi = psi,
+    # H = H,
+    R = R,
     Sigma_eta = Sigma_eta
   ))
 }
 
-predict_step <- function(X_t, Omega_t, F, H, Sigma_eta) {
-
+predict_step <- function(X_t, Omega_t, Sigma_eta, n_loc, state_dim, m) {
+  
+  # ---- Shift state ----
   # One-step ahead state prediction
-  X_pred_2 <- F %*% X_t
-  #############################################
-  # New F alternative
+  # X_pred <- F %*% X_t
+  X_pred <- matrix(0, state_dim, 1)
   
-  # r <- (m+1)*n_loc
-  # X_pred <- numeric(r)
-  # 
-  # # shift everything down by one block
-  # X_pred[(n_loc+1):r] <- X_t[1:(r-n_loc)]
+  for (j in 1:m) {
+    dest <- (j*n_loc + 1):((j+1)*n_loc)
+    src  <- ((j-1)*n_loc + 1):(j*n_loc)
+    X_pred[dest] <- X_t[src]
+  }
   
-  ##############################################
-
-  # Process noise contribution
-  Q <- H %*% Sigma_eta %*% t(H)
+  # ---- Shift covariance ----
   # State covariance prediction
-  Omega_pred <- F %*% Omega_t %*% t(F) + Q
-  ##############################################
-  # Omega_pred <- matrix(0, r, r)
-  # 
-  # Omega_pred[(n_loc+1):r, (n_loc+1):r] <- Omega_t[1:(r-n_loc), 1:(r-n_loc)]
-  # 
-  # 
-  # Omega_pred[1:n_loc, 1:n_loc] <- Sigma_eta
-
-  ###############################################
-
+  # Omega_pred <- F %*% Omega_t %*% t(F) + Q
+  Omega_pred <- matrix(0, state_dim, state_dim)
+  
+  for (i in 1:m) {
+    for (j in 1:m) {
+      
+      row_new <- (i*n_loc + 1):((i+1)*n_loc)
+      col_new <- (j*n_loc + 1):((j+1)*n_loc)
+      
+      row_old <- ((i-1)*n_loc + 1):(i*n_loc)
+      col_old <- ((j-1)*n_loc + 1):(j*n_loc)
+      
+      Omega_pred[row_new, col_new] <-
+        Omega_t[row_old, col_old]
+    }
+  }
+  
+  Omega_pred[1:n_loc, 1:n_loc] <-
+    Omega_pred[1:n_loc, 1:n_loc] + Sigma_eta
+  
+  # ---- Safety checks ----
+  if (max(abs(Omega_pred - t(Omega_pred))) > 1e-8)
+    stop("Omega_pred not symmetric")
+  
   return(list(
     X_pred = X_pred,
     Omega_pred = Omega_pred
   ))
 }
 
-
-
 update_step <- function(X_pred, Omega_pred, Y_obs,
                         psi, R) {
   
-  # Innovation
-  ## For loops avoids the mega-matrix nonsense
-  # Y_pred <- G %*% X_pred
-  Y_pred <- numeric(n_loc)
+  n_loc <- nrow(Y_obs)
+  state_dim <- length(X_pred)
+  m <- state_dim / n_loc - 1
   
-  for (k in 0:m) {
-    idx <- (k*n_loc + 1):((k+1)*n_loc)
-    Y_pred <- Y_pred + psi[k+1] * X_pred[idx]
-  }
+  # Innovation
+  # Y_pred <- G %*% X_pred
+  #O(Nr) -> O(N^2m)
+  #############################################
+  X_mat <- matrix(X_pred, n_loc, m+1)
+  Y_pred <- X_mat %*% psi
+  #############################################
   innovation <- Y_obs - Y_pred
   
   # Innovation covariance
-  ## r = (m+1)N
-  ## the one line code below runs in about O(Nr^2), the double for loops is O(m^2N^2)
   # S_t <- G %*% Omega_pred %*% t(G) + R
+  # O(m^2N^3) -> O(m^2N^2)
+  #############################################
+  
   S_t <- matrix(0, n_loc, n_loc)
   
   for (i in 0:m) {
-    idx_i <- (i*n_loc + 1):((i+1)*n_loc)
-    
     for (j in 0:m) {
-      idx_j <- (j*n_loc + 1):((j+1)*n_loc)
+      row_idx <- (i*n_loc + 1):((i+1)*n_loc)
+      col_idx <- (j*n_loc + 1):((j+1)*n_loc)
       
-      Omega_ij <- Omega_pred[idx_i, idx_j]
+      Omega_ij <- Omega_pred[row_idx, col_idx, drop = FALSE]
+      
       S_t <- S_t + psi[i+1] * psi[j+1] * Omega_ij
     }
   }
   
   S_t <- S_t + R
+  #############################################
   
   S_inv <- solve(S_t)
   
+  if (any(!is.finite(S_t))) {
+    stop("S_t not finite")
+  }
+  
+  eig_vals <- eigen(S_t, symmetric = TRUE, only.values = TRUE)$values
+  
+  if (any(eig_vals <= 0)) {
+    stop("S_t not PD")
+  }
+  
   # ---- Kalman Gain ----
-  # with loop speed up to avoid mega G matrix
-  r <- length(X_pred)
-  K_t <- matrix(0, r, n_loc)
+  # K_t <- Omega_pred %*% t(G) %*% S_inv
+  # O(m^2N^3) -> O(m^2N^2)
+  #################################################
+  Omega_Gt <- matrix(0, state_dim, n_loc)
   
   for (i in 0:m) {
-    idx_i <- (i*n_loc + 1):((i+1)*n_loc)
     
-    temp <- matrix(0, n_loc, n_loc)
+    row_idx <- (i*n_loc + 1):((i+1)*n_loc)
+    
+    block_sum <- matrix(0, n_loc, n_loc)
     
     for (j in 0:m) {
-      idx_j <- (j*n_loc + 1):((j+1)*n_loc)
-      Omega_ij <- Omega_pred[idx_i, idx_j]
-      temp <- temp + psi[j+1] * Omega_ij
+      col_idx <- (j*n_loc + 1):((j+1)*n_loc)
+      Omega_ij <- Omega_pred[row_idx, col_idx, drop = FALSE]
+      block_sum <- block_sum + psi[j+1] * Omega_ij
     }
     
-    K_t[idx_i, ] <- temp %*% S_inv
+    Omega_Gt[row_idx, ] <- block_sum
   }
+  
+  K_t <- Omega_Gt %*% S_inv
+  ######################################################
   
   # State update
   X_updated <- X_pred + K_t %*% innovation
@@ -146,13 +173,21 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
   n_loc <- length(Y_obs)
   likeli <- -0.5 * (log_det + quad_form + n_loc * log(2*pi))
   
+  if (any(!is.finite(innovation))) {
+    stop("Innovation not finite")
+  }
+  
+  if (any(!is.finite(K_t))) {
+    stop("Kalman gain not finite")
+  }
+  
   return(list(
     X_updated = X_updated,
     Omega_updated = Omega_updated,
-    likeli = likeli
+    likeli = likeli,
+    Y_pred = Y_pred
   ))
 }
-
 
 kalman_filter <- function(data, state_space, m) {
   
@@ -165,16 +200,15 @@ kalman_filter <- function(data, state_space, m) {
   # Initialize state
   X_t <- matrix(0, state_dim, 1)
   Omega_t <- diag(500, state_dim)
-  
   for (t in 1:T_len) {
-    
     # -------- Predict --------
     pred <- predict_step(
       X_t,
       Omega_t,
-      state_space$F,
-      state_space$H,
-      state_space$Sigma_eta
+      # state_space$F,
+      # state_space$H,
+      state_space$Sigma_eta,
+      n_loc, state_dim, m
     )
     
     X_pred <- pred$X_pred
@@ -188,6 +222,7 @@ kalman_filter <- function(data, state_space, m) {
       X_pred,
       Omega_pred,
       Y_obs,
+      # state_space$G,
       state_space$psi,
       state_space$R
     )
@@ -200,8 +235,6 @@ kalman_filter <- function(data, state_space, m) {
   
   return(as.numeric(likelihood))
 }
-
-
 
 neg_loglik <- function(par, data, m, n_side) {
   
@@ -265,11 +298,23 @@ neg_loglik <- function(par, data, m, n_side) {
   )
   
   # ---- Run Kalman filter ----
-  lik <- kalman_filter(
-    data = data,
-    state_space = state_space,
-    m = m
+  lik <- tryCatch(
+    kalman_filter(
+      data = data,
+      state_space = state_space,
+      m = m
+    ),
+    error = function(e) {
+      cat("Kalman error:", conditionMessage(e), "\n")
+      return(NA)
+    }
   )
+  
+  if (!is.finite(lik)) {
+    cat("Non-finite likelihood\n")
+    print(theta)
+    return(1e12)
+  }
   
   # ---- Return negative log-likelihood ----
   return(-as.numeric(lik))

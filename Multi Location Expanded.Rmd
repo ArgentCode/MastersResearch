@@ -164,7 +164,7 @@ state_space <- create_state_space(
 )
 
 # -------------------------
-# 4️⃣ Run Kalman filter
+# 4️⃣ Run Kalman filter (Expanding to debug)
 # -------------------------
 loglik_value <- kalman_filter(
   data = mat,
@@ -173,7 +173,6 @@ loglik_value <- kalman_filter(
 )
 
 loglik_value
-
 ```
 
 
