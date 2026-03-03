@@ -1,0 +1,139 @@
+---
+title: "Orman Research Task 1"
+output: html_document
+---
+
+# Short versus Long term memory
+
+The simple explanation of the difference between short and long term time series models is that short term models have ACF lags up to a point k, whereas long memory models are larger or infinite. Typically, K is a very large number. (10,000 units of distance or so)
+
+
+## Short Memory Example
+
+```{r}
+y <- arima.sim(list(ma=1), n=200)
+acf(y, main=paste("ARMA with (", 1, 1, ")"))
+```
+
+
+```{r}
+set.seed(123)
+
+# 1. Simulate a short-memory ARMA(1,1)
+phi <- 0.6   # AR(1) coefficient
+theta <- 0.4 # MA(1) coefficient
+n <- 300
+y <- arima.sim(list(order=c(1,0,1), ar=phi, ma=theta), n=n)
+
+# 2. Compute sample autocorrelation (ACF)
+acf_obj <- acf(y, plot=FALSE)
+acf_vals <- acf_obj$acf[-1]      # remove lag 0
+lags <- 1:length(acf_vals)
+
+# 3. Theoretical-style geometric and exponential decays for comparison
+geo_decay <- phi^lags            # geometric (AR-like)
+exp_decay <- exp(-0.2*lags)      # exponential (arbitrary lambda=0.2 for visual fit)
+
+# 4. Plot
+plot(lags, abs(acf_vals), type="h", lwd=2, col="steelblue",
+     main=sprintf("Short-memory ARMA(1,1): phi=%.1f, theta=%.1f", phi, theta),
+     ylab="ACF", xlab="Lag", ylim=c(-0.2,1))
+
+# 5. Overlay decay curves
+lines(lags, geo_decay, col="darkred", lwd=2, lty=2)
+lines(lags, exp_decay, col="forestgreen", lwd=2, lty=3)
+
+# 6. Add legend
+legend("topright", legend=c("Sample ACF", "Geometric decay", "Exponential decay"),
+       col=c("steelblue","darkred","forestgreen"), lty=c(1,2,3), lwd=2, bty="n")
+
+```
+
+
+
+## Long Memory Example
+
+```{r}
+# --- Compare short vs long memory processes ---
+set.seed(123)
+
+# --- 1. Short-memory: ARMA(1,1) ---
+phi <- 0.6
+theta <- 0.4
+n <- 500
+y_short <- arima.sim(list(order=c(1,0,1), ar=phi, ma=theta), n=n)
+acf_short <- acf(y_short, plot=FALSE)
+lags_short <- 1:length(acf_short$acf[-1])
+acf_vals_short <- acf_short$acf[-1]
+
+# Geometric decay for comparison
+geo_decay <- phi^lags_short
+exp_decay <- exp(-0.2 * lags_short)
+
+# --- 2. Long-memory: ARFIMA(0,d,0) ---
+d <- 0.4   # fractional difference parameter (0 < d < 0.5 gives long memory)
+y_long <- fracdiff.sim(n=n, d=d)$series
+acf_long <- acf(y_long, plot=FALSE)
+lags_long <- 1:length(acf_long$acf[-1])
+acf_vals_long <- acf_long$acf[-1]
+
+# Theoretical hyperbolic decay ~ h^(2d - 1)
+hyper_decay <- lags_long^(2*d - 1)
+
+# Long-memory plot
+plot(lags_long, acf_vals_long, type="h", lwd=2, col="darkorange",
+     main=sprintf("Long-memory ARFIMA(0,%.1f,0)", d),
+     xlab="Lag", ylab="ACF", ylim=c(-0.2,1))
+lines(lags_long, acf_vals_short, lwd=2, col="blue")
+lines(lags_long, hyper_decay, col="purple", lwd=2, lty=2)
+
+
+lags <- 1:length(acf_vals_long)
+geo_decay <- phi^lags            # geometric (AR-like)
+exp_decay <- exp(-0.2*lags)      # exponential (arbitrary lambda=0.2 for visual fit)
+lines(lags, geo_decay, col="darkred", lwd=2, lty=2)
+lines(lags, exp_decay, col="forestgreen", lwd=2, lty=3)
+
+legend("topright", legend=c("Sample ACF", "Hyperbolic decay ~ h^(2d-1)"),
+       col=c("darkorange","purple"), lty=c(1,2), lwd=2, bty="n")
+
+```
+
+
+```{r}
+# --- Compare short vs long memory ACFs on the same plot ---
+
+# --- 1. Short-memory ARMA(1,1) ---
+phi <- 0.6
+theta <- 0.4
+n <- 5000
+y_short <- arima.sim(list(order=c(1,0,1), ar=phi, ma=theta), n=n)
+acf_short <- acf(y_short, plot=FALSE)
+lags <- 1:length(acf_short$acf[-1])
+acf_vals_short <- acf_short$acf[-1]
+
+# --- 2. Long-memory ARFIMA(0,d,0) ---
+d <- 0.4
+y_long <- fracdiff.sim(n=n, d=d)$series
+acf_long <- acf(y_long, plot=FALSE)
+acf_vals_long <- acf_long$acf[-1]
+
+# --- 3. Plot both ACFs together ---
+plot(lags, acf_vals_short, type="h", lwd=2, col="steelblue",
+     main=sprintf("ACF Comparison: ARMA(1,1) vs ARFIMA(0,%.1f,0)", d),
+     xlab="Lag", ylab="ACF", ylim=c(-0.1,1), xlim=c(0,20))
+lines(lags + 0.1, acf_vals_long, lwd=2, col="red", type='h')
+
+# Optional: overlay theoretical decays
+lines(lags, phi^lags, col="darkred", lty=2, lwd=1)            # geometric
+lines(lags, lags^(2*d - 1) / max(lags^(2*d - 1)),             # normalized hyperbolic
+      col="purple", lty=3, lwd=1)
+
+# --- 4. Add legend ---
+legend("topright",
+       legend=c("Short-ARMA ACF","Long-ARFMA ACF","Geometric decay","Hyperbolic decay"),
+       col=c("steelblue","red","darkred","purple"),
+       lty=c(1,1,2,3), lwd=2, bty="n")
+
+```
+

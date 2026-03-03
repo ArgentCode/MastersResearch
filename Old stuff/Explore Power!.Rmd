@@ -1,0 +1,59 @@
+---
+title: "Explore Power!"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(forecast)
+```
+
+
+# US Power Consumption Exploratory Analysis 
+
+The Energy Information Agency (EIA) posts data about the energy situation in the United States on a monthly basis. I am proposing to analyze net consumption using the ARTFIMA Time Series modelling. And then enhancing my efforts using the Ferreira (2017) paper.
+
+```{r}
+dat = read.table("Power_Consumption.csv", sep=',', header = TRUE)
+dat = dat[dat$Type != "Title",]
+dat[, 6:301] <- lapply(dat[, 6:301], as.numeric) #Introduces NA's
+Iowa_dat = dat[dat$Sector == "Iowa",]
+head(Iowa_dat)
+```
+
+```{r}
+iowa_all_sec = Iowa_dat[1,6:301] %>% unlist() %>% unname() %>% log() %>% ts(start = c(2001, 1), frequency = 12)
+
+par(mfrow=c(1,2))
+plot(iowa_all_sec, xlab="Month", ylab="All Sector Electric Consumption (1000 MW)", main = "Iowa's Energy Consumption across all Sectors 2001-2025")
+vals = acf(iowa_all_sec, lag.max = 306)
+# pacf(iowa_all_sec)
+
+par(mfrow=c(1,2))
+d12 = diff(iowa_all_sec, lag=1)
+plot(d12)
+acf(d12, lag.max=100)
+
+par(mfrow=c(1,2))
+d12_1 <- diff(d12, lag=1)
+plot(d12_1)
+acf(d12_1, lag.max=100)
+```
+
+```{r}
+fit = arima(iowa_all_sec, order=c(1,0,0))
+fitted_vals <- fitted(fit)
+
+MSE = round(mean(fit$residuals^2),4)
+plot(iowa_all_sec, xlab="Month", 
+     ylab="All Sector Electric Consumption (1000 MW)",
+     main="Iowa’s Energy Consumption 2001–2025",
+     xlim=c(2021,2022))
+lines(fitted_vals, col="red", lwd=2)
+legend("bottomright", legend=c("Observed", "Fitted (AR(1))", MSE),
+       col=c("black", "red"), lty=1, lwd=2)
+
+```
+
+
+

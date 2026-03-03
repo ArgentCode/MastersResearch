@@ -1,0 +1,55 @@
+---
+title: "Analyzing AMZN Stock"
+output: pdf_document
+---
+
+# Introduction
+
+This document will attempt an organized and clear attempt at predicting Amazon (AMZN) closing stock prices using Time Series Models. In particular, ARTFIMA model.
+
+```{r, echo = F, message = F, warning = F}
+library(artfima)
+library(quantmod)
+# library(stats)   # for arima.sim and acf
+```
+
+# Analyze
+
+To begin our analysis, we will plot the raw closing prices from 2000 - 2017. As you can see, there has been fairly explosive growth starting in January 2009
+```{r}
+getSymbols("AMZN", from = "2000-01-03", to = "2017-01-03")
+
+# Extract adjusted closing prices
+amzn_close <- Cl(AMZN)
+
+# Plot closing prices
+plot(amzn_close, main = "Amazon Closing Prices (2000–2017)", col = "darkblue")
+```
+
+Next, we are interested in examining the squared log returns per day. Shown below. Very spikey.
+
+```{r}
+amzn_ret <- diff(log(amzn_close))
+amzn_ret <- na.omit(amzn_ret)
+
+amzn_sqr <- amzn_ret^2
+
+# Plot returns
+plot(amzn_sqr, main = "Amazon Log Returns (2000–2017)", col = "darkred")
+```
+
+Now we check the ACF and PACF to see if we have a clear modeling choice. The ACF seems to be cyclical to some degree, and long. Implying a long time series
+
+```{r}
+
+# adf.test(amzn_ret)
+# par(mfrow = c(1,2))
+acf(amzn_sqr, lag.max = 250, main = "ACF of Amazon Log Returns")
+pacf(amzn_sqr, lag.max = 100, main = "PACF of Amazon Log Returns")
+```
+
+
+
+
+
+# Model

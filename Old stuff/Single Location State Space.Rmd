@@ -1,0 +1,196 @@
+---
+title: "Single Location State Space"
+output: pdf_document
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(artfima)
+library(fields) # for rdist + Matern 
+library(MASS) # for mvrnorm
+library(ggplot2)
+library(tidyr)
+source("ArtfimaCausal.R")
+set.seed(324798)
+mu <- 3
+sigma_W <- 0.5
+
+A <- artsim(
+  n = 300,
+  d = 0.3,
+  lambda = 2,
+  phi = 0.45,
+  theta = 0.3
+)
+
+A <- A + mu + rnorm(300, sd = sigma_W)
+
+mat = matrix(A, nrow=1, ncol=length(A),
+             byrow=TRUE)
+
+```
+
+
+# psi approximates: 
+
+```{r}
+model = artfima(mat[1,], arimaOrder = c(1,0,1))
+# Only really comes into play when we have multi-locations
+# coords <- matrix( c(0, 0, 1, 0, 0, 1), ncol = 2, byrow = TRUE ) 
+# m <- 15 # Set truncation 
+# n_loc <- nrow(coords)
+# D <- rdist(coords) # pairwise distances 
+# Matérn parameters
+
+# The innovation variance from your fitted model
+sigma2_eta <- model$sigmaSq  # or whatever artfima() outputs 
+range_eta <- 1 
+nu_eta <- 1.5 # smoothness 
+m = 20 # Truncation 
+Sigma_eta <- matrix(sigma2_eta, 1, 1)
+psi <- psi_artfima(
+  m       = m,
+  d       = model$dHat,
+  lambda  = model$lambdaHat,
+  ar      = model$ar,
+  ma      = model$ma
+)
+```
+
+
+# state space basics
+
+```{r}
+# Dimensions
+n_loc <- nrow(mat)
+p <- 1
+state_dim = m + 1
+
+
+# Observation noise
+#TODO: this is a possible contribution I could add!!! Fereirra assumes this is 0 actually
+sigma2_W <- sigma_W^2 # measurement error variance 
+R <- diag(sigma2_W, n_loc)
+
+
+# Observation equation: Y_t = G*X_t + M*beta + W_t
+G <- matrix(psi[1:(m+1)], nrow = n_loc, ncol = m + 1)  # [psi_0, psi_1, ..., psi_m]
+M <- matrix(1, nrow = n_loc, ncol = p) # Design matrix for mean
+beta <- matrix(model$constant, nrow = p, ncol = 1) # intercept (can estimate this)
+
+
+# State equation: X_t = F*X_{t-1} + H*eta_t
+F <- matrix(0, state_dim, state_dim)
+F[2:state_dim, 1:(state_dim - 1)] <- diag(state_dim - 1)
+
+H <- matrix(0, state_dim, n_loc)
+H[1:n_loc, 1:n_loc] <- diag(n_loc)
+```
+
+# Direction run through
+
+```{r}
+# Initial state
+X_0 <- matrix(0, nrow = m + 1, ncol = 1)  # X_0|0 = 0
+Omega_0 <- diag(1000, m + 1)  # P_0|0 = large initial uncertainty
+
+# One-step ahead state prediction: X_1|0 = F*X_0|0 + H*eta_1
+# But we don't observe eta_1 yet, so for prediction:
+X_1_given_0 <- F %*% X_0  # E[X_1 | Y_0] = F*X_0|0 (since E[eta_1] = 0)
+
+# One-step ahead observation prediction: Y_1|0
+Y_1_given_0 <- G %*% X_1_given_0 + M %*% beta
+
+# Prediction variance for X_1|0:
+Omega_1_given_0 <- F %*% Omega_0 %*% t(F) + H %*% sigma2_eta %*% t(H)
+
+# Prediction variance for Y_1|0:
+sigma2_Y_1_given_0 <- G %*% Omega_1_given_0 %*% t(G) + sigma2_W
+```
+
+
+# Running the first instance
+```{r}
+# Initialize
+X_0 <- matrix(0, nrow = m + 1, ncol = 1)
+Omega_0 <- diag(sigma2_eta, m + 1)
+
+# First prediction
+pred_1 <- predict_step(X_0, Omega_0, F, H, sigma2_eta, G, M, beta)
+
+# Suppose we observe Y_1
+Y_1_obs <- mat[1, 1]  # actual observation
+
+# Update with observation
+update_1 <- update_step(pred_1$X_pred, pred_1$Omega_pred, Y_1_obs, 
+                        F, H, sigma2_eta, G, M, beta, sigma2_W)
+
+# Continue for next time step
+pred_2 <- predict_step(update_1$X_updated, update_1$Omega_updated, 
+                       F, H, sigma2_eta, G, M, beta) 
+```
+
+Building a run
+
+```{r}
+# Initial Vectors
+Y_hat = matrix(0, nrow=nrow(mat), ncol=ncol(mat)+1)
+likelihood = 0
+
+X_t <- matrix(0, nrow = m + 1, ncol = 1)
+Omega_t <- diag(sigma2_eta, m + 1)
+
+for (i in 1:ncol(mat)) {
+  # given previous instances predict.
+  pred = predict_step(X_t, Omega_t, F, H, sigma2_eta, G, M, beta)
+  # update values
+  Y_hat[1,i] = pred$Y_pred
+  X_t = pred$X_pred
+  Omega_t = pred$Omega_pred
+  
+  # zzzz some time passes
+  
+  # Now you see the thing, so update our values
+  Y_obs = mat[1,i]
+  update = update_step(pred$X_pred, pred$Omega_pred, Y_obs, 
+                        F, H, sigma2_eta, G, M, beta, sigma2_W)
+  # Update values
+  X_t = update$X_updated
+  Omega_t = update$Omega_updated
+  likelihood= likelihood + update$likeli
+  
+}
+
+pred = predict_step(X_t, Omega_t, F, H, sigma2_eta, G, M, beta)
+# update values
+Y_hat[1,i+1] = pred$Y_pred
+X_t = pred$X_pred
+Omega_t = pred$Omega_pred
+likelihood
+```
+
+And plotting!
+
+```{r}
+
+df = data.frame(predictions = t(Y_hat), originals = t(cbind(mat,NA)))
+# Create time index
+df$time <- 1:nrow(df)
+
+# Reshape for ggplot
+df_long <- df %>%
+  pivot_longer(cols = c(predictions, originals), 
+               names_to = "type", 
+               values_to = "value")
+
+ggplot(df_long, aes(x = time, y = value, color = type, linetype = type)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c("originals" = "black", "predictions" = "red"),
+                     labels = c("Observed", "Predicted")) +
+  scale_linetype_manual(values = c("originals" = "solid", "predictions" = "dashed"),
+                        labels = c("Observed", "Predicted")) +
+  labs(x = "Time", y = "Value", 
+       title = "ARTFIMA: One-Step-Ahead Predictions vs Observations",
+       color = "", linetype = "") +
+  theme_minimal() +
+  theme(legend.position = "top")
+```

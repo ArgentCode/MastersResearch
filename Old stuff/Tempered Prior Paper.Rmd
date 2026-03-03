@@ -1,0 +1,133 @@
+---
+title: "Tempered Prior Paper"
+output: html_document
+---
+
+```{r}
+library(artfima)
+```
+
+# Regular ARIMA 
+```{r}
+y <- arima.sim(model = list(ar = 0.7, ma = 0.5), n = 200)
+plot(y, main = "Simulated ARMA(1,1)", ylab = "y_t", type = "l")
+```
+
+
+
+```{r}
+dat = artsim(n=100, d=0.2, lambda=3, phi=c(0.3), theta=c(0.2), mean=0, sigma2 = 1)
+plot(x=1:100, y=dat, type='l')
+```
+
+```{r}
+# Load necessary packages
+library(artfima)
+library(stats)   # for arima.sim and acf
+
+
+# ------------------------
+# 0. Parameters
+# ------------------------
+
+set.seed(123)
+n <- 3000  # length of the time series
+d_arfima <- .4  # fractional differencing parameter
+lambda <- c(0, 0.001, 0.05, 0.1)  # smaller lambda faster decay
+d_artfima <- 0.3
+lag_max <- 30
+# ------------------------
+# 1. Simulate ARFIMA
+# ------------------------
+arfima_series <- artsim(n=n, d=d_arfima)
+acf_arfima <- acf(arfima_series, plot = FALSE)
+
+# ------------------------
+# 2. Simulate ARTFIMA
+# ------------------------
+
+artfima_series <- artsim(n=n, d=d_arfima, lambda=d_artfima)
+# artfima_series <- artfima.sim(n = n, model = list(d = d_artfima, lambda = lambda))
+acf_artfima <- acf(artfima_series, plot = FALSE)
+
+# ------------------------
+# 3. Plot ACFs
+# ------------------------
+# Convert to numeric vectors for plotting
+acf_ar <- acf_arfima$acf[1:(lag_max + 1)]
+acf_at <- acf_artfima$acf[1:(lag_max + 1)]
+lags <- 0:lag_max
+acf0 <- acf_at[1]  # ACF at lag 0
+
+plot(lags, acf_ar, type = "b", pch = 19, col = "blue", 
+     ylim = c(0, max(acf_ar, acf_at)),
+     xlab = "Lag", ylab = "ACF", main = "ARFIMA vs ARTFIMA ACF")
+lines(lags, acf_at, type = "b", pch = 17, col = "red")
+# Add to existing plot
+legend("topright", 
+       legend = c("ARFIMA", "ARTFIMA"),
+       col = c("blue", "red"),
+       pch = c(19,17), lty = c(NA, NA), lwd = c(NA, NA))
+
+# Assuming previous plot is already made
+
+```
+
+
+```{r}
+# =========================================
+#  Amazon closing prices (2000-01-03 to 2017-01-03)
+#  Data prep for ARTFIMA modeling
+# =========================================
+
+# Install required packages if not already installed
+# if (!require("quantmod")) install.packages("quantmod", dependencies = TRUE)
+# if (!require("tseries")) install.packages("tseries", dependencies = TRUE)
+
+library(quantmod)
+library(tseries)
+
+# -----------------------------------------
+# 1. Download Amazon stock data (symbol: AMZN)
+# -----------------------------------------
+getSymbols("AMZN", from = "2000-01-03", to = "2017-01-03")
+
+# Extract adjusted closing prices
+amzn_close <- Cl(AMZN)
+
+# Plot closing prices
+plot(amzn_close, main = "Amazon Closing Prices (2000–2017)", col = "darkblue")
+
+# -----------------------------------------
+# 2. Compute log returns
+# -----------------------------------------
+amzn_ret <- diff(log(amzn_close))
+amzn_ret <- na.omit(amzn_ret)
+amzn_sq <- amzn_ret^2
+
+# Plot returns
+plot(amzn_sq, main = "Amazon Square Log Returns (2000–2017)", col = "darkred")
+
+# Basic summary
+summary(amzn_sq)
+
+# -----------------------------------------
+# 3. Optional: check stationarity and lags
+# -----------------------------------------
+# adf.test(amzn_ret)
+# par(mfrow = c(1,2))
+acf(amzn_sq, lag.max = 100, main = "ACF of Amazon squared Log Returns")
+# pacf(amzn_ret^2, lag.max = 100, main = "PACF of Amazon Log Returns")
+
+# -----------------------------------------
+# 4. Spectral Plot
+# -----------------------------------------
+spec <- spectrum(amzn_sq, spans = c(5,5), log = "no", main = "Spectral Density of Squared Log Returns (Amazon 2000–2017)")
+plot(log(spec$freq), log(spec$spec),
+     type = "p", col = "darkgreen",
+     main = "Log–Log Spectral Density (Squared Log Returns)",
+     xlab = "log(Frequency)", ylab = "log(Spectral Density)")
+
+```
+
+

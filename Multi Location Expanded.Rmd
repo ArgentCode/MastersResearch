@@ -1,0 +1,462 @@
+---
+title: "Multi Location Expanded"
+output: pdf_document
+---
+
+# Introduction
+
+```{r, warning=FALSE}
+library(artfima)
+library(MASS)
+library(parallel)
+
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+```
+
+
+So after reading 4. Simulation Studies, I discovered that I am not quite approaching this the right way. Half the point of this paper is sneakily breezed through in like 3 paragraphs. 
+
+So, heres my work flow
+
+  + We start with true parameters and simulate T observations at N locations.
+  + We then treat this simulated data as observed data.
+  + To estimate parameters, we start with initial guesses, build the state-space matrices, and run the Kalman filter to compute the Gaussian likelihood.
+  + An optimizer updates the parameters to maximize this likelihood, repeatedly running the Kalman filter until convergence.
+  + This whole process is repeated M times to study finite-sample behavior.
+
+Lets do a walk through of an ARMA(1,1) just like they did
+
+# True Data Creation
+```{r}
+set.seed(4545)
+
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.35,
+  theta = 0.35,
+  sigma2_eta = 3,
+  sigma2_w = 0,
+  rho = 0.7
+)
+
+# -------------------------
+# Dimensions
+# -------------------------
+T_len <- 150
+n_side <- 3
+N <- n_side^2
+m <- 10
+
+# -------------------------
+# 1️⃣ Build spatial grid
+# -------------------------
+coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+coords <- as.matrix(coords)
+
+# Pairwise distances
+D <- as.matrix(dist(coords))
+
+# -------------------------
+# 2️⃣ Spatial innovation covariance (Matérn ν = 1/2)
+# -------------------------
+Sigma_eta <- true_theta$sigma2_eta * exp(-D / true_theta$rho)
+
+# -------------------------
+# 3️⃣ Temporal filter weights (ψ)
+# -------------------------
+psi <- psi_artfima(
+  m = m,
+  d = true_theta$d,
+  lambda = true_theta$lambda,
+  ar = true_theta$phi,
+  ma = true_theta$theta
+)
+
+# -------------------------
+# 4️⃣ Generate spatial innovations η_t  (N × T)
+# -------------------------
+
+eta <- matrix(0, N, T_len + m)
+
+for (t in 1:(T_len + m)) {
+  eta[, t] <- mvrnorm(1, mu = rep(0, N), Sigma = Sigma_eta)
+}
+
+# -------------------------
+# 5️⃣ Build latent process X_t via convolution
+# -------------------------
+X <- matrix(0, N, T_len)
+
+for (t in 1:T_len) {
+  for (j in 0:m) {
+    X[, t] <- X[, t] + psi[j + 1] * eta[, t + m - j]
+  }
+}
+
+# -------------------------
+# 6️⃣ Add measurement noise
+# -------------------------
+W <- matrix(rnorm(N * T_len, 0, sqrt(true_theta$sigma2_w)),
+            nrow = N, ncol = T_len)
+
+Y <- X + W
+
+# Final data matrix
+mat <- Y
+```
+
+# First Smoke Test
+
+```{r}
+# -------------------------
+# Smoke test: single likelihood evaluation
+# -------------------------
+
+m <- 10
+n_loc <- nrow(mat)
+n_side <- 3  # since 3x3 grid
+
+# Parameter guess
+thetahat <- list(
+  dhat = 0,
+  lambdahat = 0.4,
+  phihat = 0.5,
+  thetahat = 0.75,
+  sigma2_eta = 0.75,
+  sigma2_w = 0.2,
+  rho = 0.5
+)
+
+# -------------------------
+# 1️⃣ Build psi
+# -------------------------
+psi <- psi_artfima(
+  m = m,
+  d = thetahat$dhat,
+  lambda = thetahat$lambdahat,
+  ar = thetahat$phihat,
+  ma = thetahat$thetahat
+)
+
+# -------------------------
+# 2️⃣ Build spatial covariance (Matérn ν = 1/2)
+# -------------------------
+coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+coords <- as.matrix(coords)
+
+D <- as.matrix(dist(coords))
+
+Sigma_eta_hat <- thetahat$sigma2_eta *
+  exp(-D / thetahat$rho)
+
+# -------------------------
+# 3️⃣ Build state-space
+# -------------------------
+state_space <- create_state_space(
+  n_loc = n_loc,
+  m = m,
+  sigma2_w = thetahat$sigma2_w,
+  psi = psi,
+  Sigma_eta = Sigma_eta_hat
+)
+
+# -------------------------
+# 4️⃣ Run Kalman filter
+# -------------------------
+loglik_value <- kalman_filter(
+  data = mat,
+  state_space = state_space,
+  m = m
+)
+
+loglik_value
+
+```
+
+
+
+## And run?
+
+```{r}
+thetahat <- c(
+  phihat = 0.5,
+  thetahat = 0.5,
+  sigma2_eta = 1,
+  rho = 0.5
+)
+
+fit <- nlminb(
+  start = thetahat,
+  objective = neg_loglik,
+  data = mat,
+  m = 10,
+  n_side = 3,
+  # phihat, thetahat, sigma2_eta, sigma2_w, rho
+  lower = c(-0.99, -0.99, 1e-6, 1e-6, 1e-6),
+  upper = c(0.99, 0.99, 10, 10, 10)
+)
+
+unlist(true_theta)
+fit
+```
+
+## Monte Carlo Experiment
+
+### Parallelize run
+
+Parallelize prep
+
+```{r}
+mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper) {
+  
+  # Simulate
+  mat <- simulate_artfima_spatial(
+    T_len = T_len,
+    n_side = n_side,
+    m = m,
+    true_theta = true_theta
+  )
+  
+  # Estimate
+  fit <- tryCatch(
+    nlminb(
+      start = start_vals,
+      objective = neg_loglik,
+      data = mat,
+      m = m,
+      n_side = n_side,
+      lower = lower,
+      upper = upper
+    ),
+    error = function(e) return(NULL)
+  )
+  
+  if (!is.null(fit) && fit$convergence == 0) {
+    return(fit$par)
+  } else {
+    return(rep(NA, length(start_vals)))
+  }
+}
+```
+
+```{r}
+n_cores <- detectCores() - 1
+
+set.seed(123)
+
+# -------------------------
+# True parameters
+# -------------------------
+true_theta <- list(
+  d = 0.25,
+  lambda = 0.01,
+  phi = 0.35,
+  theta = 0.45,
+  sigma2_eta = 1.5,
+  sigma2_w = 0,
+  rho = 0.55
+)
+
+# -------------------------
+# MC settings
+# -------------------------
+n_side <- 3
+T_len <- 100
+m <- 10
+iter <- 15
+
+# -------------------------
+# Starting values
+# -------------------------
+start_vals <- c(
+  dhat = 0.3,
+  lambdahat = 0.1,
+  phihat = 0.2,
+  thetahat = 0.2,
+  sigma2_eta = 1,
+  rho = 0.25
+)
+
+# lower bounds 
+lower = c(-0.99, 1e-6, -0.99, -0.99, 1e-6, 1e-6)
+upper = c(0.99, 0.2, 0.99, 0.99, 10, 10)
+```
+
+```{r}
+cl <- makeCluster(n_cores)
+
+clusterExport(cl, ls())  # export all objects
+clusterEvalQ(cl, library(MASS))  # needed for mvrnorm
+
+results_list <- parLapply(
+  cl,
+  1:iter,
+  mc_one_run,
+  true_theta = true_theta,
+  start_vals = start_vals,
+  T_len = T_len,
+  n_side = n_side,
+  m = m,
+  lower = lower,
+  upper = upper
+)
+
+stopCluster(cl)
+
+estimates <- do.call(rbind, results_list)
+true_vec <- c(
+  dhat = true_theta$d,
+  lambdahat = true_theta$lambda,
+  phihat = true_theta$phi,
+  thetahat = true_theta$theta,
+  sigma2_eta = true_theta$sigma2_eta,
+  # sigma2_w = true_theta$sigma2_w,
+  rho = true_theta$rho
+)
+
+mean_est <- colMeans(estimates, na.rm = TRUE)
+sd_est <- apply(estimates, 2, sd, na.rm = TRUE)
+
+bias <- mean_est - true_vec
+rel_bias <- bias / true_vec
+
+mse <- colMeans(
+  (estimates -
+     matrix(true_vec,
+            nrow = iter,
+            ncol = length(true_vec),
+            byrow = TRUE))^2,
+  na.rm = TRUE
+)
+SqrtMSE = sqrt(mse)
+
+results <- rbind(
+  True = true_vec,
+  Mean = mean_est,
+  sd = sd_est,
+  RelBias = rel_bias,
+  SqrtMSE = SqrtMSE
+)
+
+print(round(results,4))
+# print(results)
+
+```
+
+
+
+### Mono-core run
+
+To be run when my stuff stops sucking
+```{r}
+set.seed(123)
+
+# -------------------------
+# True parameters
+# -------------------------
+true_theta <- list(
+  d = 0.15,
+  lambda = 0,
+  phi = 0,
+  theta = 0.45,
+  sigma2_eta = 1.5,
+  sigma2_w = 0.1,
+  rho = 0.55
+)
+
+# -------------------------
+# MC settings
+# -------------------------
+n_side <- 3
+T_len <- 100
+m <- 10
+iter <- 15
+
+# -------------------------
+# Starting values
+# -------------------------
+start_vals <- c(
+  dhat = 0.3,
+  thetahat = 0.2,
+  sigma2_eta = 1,
+  sigma2_w = 0.2,
+  rho = 0.25
+)
+
+estimates <- matrix(NA, nrow = iter, ncol = length(start_vals))
+colnames(estimates) <- names(start_vals)
+
+# -------------------------
+# Monte Carlo Loop
+# -------------------------
+for (i in 1:iter) {
+  
+  cat("Iteration:", i, "\n")
+  
+  # ---- Simulate spatial data ----
+  mat <- simulate_artfima_spatial(
+    T_len = T_len,
+    n_side = n_side,
+    m = m,
+    true_theta = true_theta
+  )
+  
+  # ---- Estimate parameters ----
+  fit <- nlminb(
+    start = start_vals,
+    objective = neg_loglik,
+    data = mat,
+    m = m,
+    n_side = n_side,
+    lower = c(-0.99, -0.99, 1e-6, 1e-6, 1e-6),
+    upper = c(0.99, 0.99, 10, 10, 10)
+  )
+  
+  if (fit$convergence == 0) {
+    estimates[i, ] <- fit$par
+  } else {
+    cat("Non-convergence in iteration", i, "\n")
+  }
+}
+
+# -------------------------
+# Monte Carlo Summary
+# -------------------------
+
+true_vec <- c(
+  # phihat = true_theta$phi,
+  dhat = true_theta$d,
+  thetahat = true_theta$theta,
+  sigma2_eta = true_theta$sigma2_eta,
+  sigma2_w = true_theta$sigma2_w,
+  rho = true_theta$rho
+)
+
+mean_est <- colMeans(estimates, na.rm = TRUE)
+bias <- mean_est - true_vec
+rel_bias <- bias / true_vec
+
+mse <- colMeans(
+  (estimates -
+     matrix(true_vec,
+            nrow = iter,
+            ncol = length(true_vec),
+            byrow = TRUE))^2,
+  na.rm = TRUE
+)
+
+results <- rbind(
+  True = true_vec,
+  Mean = mean_est,
+  Bias = bias,
+  RelBias = rel_bias,
+  MSE = mse
+)
+
+# print(round(results,4))
+print(results)
+```
+
