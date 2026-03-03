@@ -8,6 +8,7 @@ output: pdf_document
 ```{r, warning=FALSE}
 library(MASS)
 library(parallel)
+library(pbapply)
 
 source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")
@@ -52,7 +53,8 @@ cat("===========================\n\n")
 cat("Started at:", format(Sys.time()), "\n\n")
 
 settings <- list(
-  list(T_len = 25, n_side = 2, m = 5, iter = 3)
+  list(T_len = 50, n_side = 5, m = 5, iter = 45),
+  list(T_len = 10, n_side = 3, m = 5, iter = 45)
 )
 
 for (s in settings) {

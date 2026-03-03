@@ -37,19 +37,39 @@ run_MCMC = function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = 
     upper = bounds$upper
   }
   
-  results_list <- parLapply(
-    cluster,
-    1:iter,
-    mc_one_run,
-    true_theta = true_theta,
-    start_vals = hat_theta,
-    T_len = T,
-    n_side = n_side,
-    m = m,
-    lower = lower,
-    upper = upper
-  )
+  chunk_size <- length(cluster)  # or maybe 20
+  results_list <- vector("list", iter)
   
+  start_time <- Sys.time()
+  
+  for (start in seq(1, iter, by = chunk_size)) {
+    
+    end <- min(start + chunk_size - 1, iter)
+    
+    chunk_res <- parLapply(
+      cluster,
+      start:end,
+      mc_one_run,
+      true_theta = true_theta,
+      start_vals = hat_theta,
+      T_len = T,
+      n_side = n_side,
+      m = m,
+      lower = lower,
+      upper = upper
+    )
+    
+    results_list[start:end] <- chunk_res
+    
+    message(
+      sprintf(
+        "Completed %d of %d | Elapsed: %.2f mins",
+        end,
+        iter,
+        as.numeric(difftime(Sys.time(), start_time, units = "mins"))
+      )
+    )
+  }
   
   estimates <- do.call(rbind, results_list)
   true_vec <- unlist(true_theta)[names(hat_theta)]
