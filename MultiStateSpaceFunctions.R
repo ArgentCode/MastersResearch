@@ -47,6 +47,7 @@ predict_step <- function(X_t, Omega_t, Sigma_eta, n_loc, state_dim, m) {
   # ---- Shift state ----
   # One-step ahead state prediction
   # X_pred <- F %*% X_t
+  # O(m^2N^2) -> O(mN)
   X_pred <- matrix(0, state_dim, 1)
   
   for (j in 1:m) {
@@ -58,6 +59,7 @@ predict_step <- function(X_t, Omega_t, Sigma_eta, n_loc, state_dim, m) {
   # ---- Shift covariance ----
   # State covariance prediction
   # Omega_pred <- F %*% Omega_t %*% t(F) + Q
+  # O(m^3N^3) -> O(m^2N^2)
   Omega_pred <- matrix(0, state_dim, state_dim)
   
   for (i in 1:m) {
