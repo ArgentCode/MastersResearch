@@ -8,7 +8,6 @@ output: pdf_document
 ```{r, warning=FALSE}
 library(MASS)
 library(parallel)
-library(pbapply)
 
 source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")

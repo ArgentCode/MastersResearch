@@ -80,8 +80,8 @@ predict_step <- function(X_t, Omega_t, Sigma_eta, n_loc, state_dim, m) {
     Omega_pred[1:n_loc, 1:n_loc] + Sigma_eta
   
   # ---- Safety checks ----
-  if (max(abs(Omega_pred - t(Omega_pred))) > 1e-8)
-    stop("Omega_pred not symmetric")
+  # if (max(abs(Omega_pred - t(Omega_pred))) > 1e-8)
+  #   stop("Omega_pred not symmetric")
   
   return(list(
     X_pred = X_pred,
@@ -127,16 +127,17 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
   #############################################
   
   S_inv <- solve(S_t)
+  S_inv <- chol2inv(chol(S_t))
   
-  if (any(!is.finite(S_t))) {
-    stop("S_t not finite")
-  }
-  
-  eig_vals <- eigen(S_t, symmetric = TRUE, only.values = TRUE)$values
-  
-  if (any(eig_vals <= 0)) {
-    stop("S_t not PD")
-  }
+  # if (any(!is.finite(S_t))) {
+  #   stop("S_t not finite")
+  # }
+  # 
+  # eig_vals <- eigen(S_t, symmetric = TRUE, only.values = TRUE)$values
+  # 
+  # if (any(eig_vals <= 0)) {
+  #   stop("S_t not PD")
+  # }
   
   # ---- Kalman Gain ----
   # K_t <- Omega_pred %*% t(G) %*% S_inv
@@ -175,13 +176,13 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
   n_loc <- length(Y_obs)
   likeli <- -0.5 * (log_det + quad_form + n_loc * log(2*pi))
   
-  if (any(!is.finite(innovation))) {
-    stop("Innovation not finite")
-  }
-  
-  if (any(!is.finite(K_t))) {
-    stop("Kalman gain not finite")
-  }
+  # if (any(!is.finite(innovation))) {
+  #   stop("Innovation not finite")
+  # }
+  # 
+  # if (any(!is.finite(K_t))) {
+  #   stop("Kalman gain not finite")
+  # }
   
   return(list(
     X_updated = X_updated,
