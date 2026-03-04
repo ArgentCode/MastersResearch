@@ -126,8 +126,15 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
   S_t <- S_t + R
   #############################################
   
-  S_inv <- solve(S_t)
-  S_inv <- chol2inv(chol(S_t))
+  # S_inv <- solve(S_t)
+  S_inv <- tryCatch(
+    chol2inv(chol(S_t)),
+    error = function(e) {
+      message("chol failed")
+      print(S_t)
+      return(solve(S_t))
+    }
+  )
   
   # if (any(!is.finite(S_t))) {
   #   stop("S_t not finite")
