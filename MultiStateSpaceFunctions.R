@@ -135,10 +135,6 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
       return(solve(S_t))
     }
   )
-  
-  if (any(!is.finite(S_t))) {
-    stop("S_t not finite")
-  }
   # 
   # eig_vals <- eigen(S_t, symmetric = TRUE, only.values = TRUE)$values
   # 
