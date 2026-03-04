@@ -136,9 +136,9 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
     }
   )
   
-  # if (any(!is.finite(S_t))) {
-  #   stop("S_t not finite")
-  # }
+  if (any(!is.finite(S_t))) {
+    stop("S_t not finite")
+  }
   # 
   # eig_vals <- eigen(S_t, symmetric = TRUE, only.values = TRUE)$values
   # 
@@ -183,13 +183,13 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
   n_loc <- length(Y_obs)
   likeli <- -0.5 * (log_det + quad_form + n_loc * log(2*pi))
   
-  # if (any(!is.finite(innovation))) {
-  #   stop("Innovation not finite")
-  # }
-  # 
-  # if (any(!is.finite(K_t))) {
-  #   stop("Kalman gain not finite")
-  # }
+  if (any(!is.finite(innovation))) {
+    stop("Innovation not finite")
+  }
+
+  if (any(!is.finite(K_t))) {
+    stop("Kalman gain not finite")
+  }
   
   return(list(
     X_updated = X_updated,
@@ -299,10 +299,16 @@ neg_loglik <- function(par, data, m, n_side) {
   
   
   # ---- Build state-space matrices ----
-  state_space <- create_state_space(
-    n_loc = nrow(data),
-    m = m,
-    sigma2_w = theta$sigma2_w,
+  # state_space <- create_state_space(
+  #   n_loc = nrow(data),
+  #   m = m,
+  #   sigma2_w = theta$sigma2_w,
+  #   psi = psi,
+  #   Sigma_eta = Sigma_eta
+  # )
+  
+  state_space <- list(
+    R = diag(theta$sigma2_w, n_loc),
     psi = psi,
     Sigma_eta = Sigma_eta
   )
@@ -321,8 +327,7 @@ neg_loglik <- function(par, data, m, n_side) {
   )
   
   if (!is.finite(lik)) {
-    cat("Non-finite likelihood\n")
-    print(theta)
+    message("Non-finite likelihood\n")
     return(1e12)
   }
   
