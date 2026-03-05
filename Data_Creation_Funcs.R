@@ -16,7 +16,7 @@ simulate_artfima_univariate <- function(T, true_theta) {
   matrix(Y, nrow = 1)
 }
 
-simulate_artfima_spatial <- function(
+simulate_artfima_spatial_old <- function(
     T_len,
     n_side,
     m,
@@ -84,6 +84,62 @@ simulate_artfima_spatial <- function(
     rnorm(N * T_len, 0, sqrt(true_theta$sigma2_w)),
     nrow = N,
     ncol = T_len
+  )
+  
+  Y <- X + W
+  
+  return(Y)
+}
+
+simulate_artfima_spatial <- function(
+    T_len,
+    n_side,
+    m,
+    true_theta
+) {
+  
+  N <- n_side^2
+  
+  coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+  coords <- as.matrix(coords)
+  D <- as.matrix(dist(coords))
+  
+  # Spatial covariance
+  if (N == 1) {
+    Sigma_eta <- matrix(true_theta$sigma2_eta,1,1)
+  } else {
+    Sigma_eta <- true_theta$sigma2_eta * exp(-D / true_theta$rho)
+  }
+  
+  # Temporal weights
+  psi <- psi_artfima(
+    m = m,
+    d = true_theta$d,
+    lambda = true_theta$lambda,
+    ar = true_theta$phi,
+    ma = true_theta$theta
+  )
+  
+  eta <- MASS::mvrnorm(
+    n = T_len + m,
+    mu = rep(0, N),
+    Sigma = Sigma_eta
+  )
+  
+  eta <- t(eta)   # convert to N x T
+  
+  X <- matrix(0, N, T_len)
+  
+  for (j in 0:m) {
+    X <- X + psi[j+1] * eta[, (m-j+1):(T_len + m - j)]
+  }
+  
+  # Measurement noise
+  
+  W <- matrix(
+    rnorm(N*T_len,0,sqrt(true_theta$sigma2_w)),
+    N,
+    T_len
   )
   
   Y <- X + W

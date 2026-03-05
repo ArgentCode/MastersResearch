@@ -3,6 +3,41 @@ title: "Function Testing"
 output: html_document
 ---
 
+# Simulate Data
+```{r}
+rm(list=ls())
+gc()
+source("ArtfimaCausal.R")
+source("Data_Creation_Funcs.R")
+library(bench)
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+
+T_len = 250
+m = 10
+n_side = 10
+
+
+start_time <- Sys.time()
+mark(
+  simulate_artfima_spatial(T_len, n_side, m, true_theta),
+  iterations = 5
+)
+end_time <- Sys.time()
+cat("\nRuntime:",
+    round(difftime(end_time, start_time, units = "secs"), 2),
+    "seconds\n\n")
+  
+```
+
+
 # Kalman Filter
 ```{r}
 rm(list=ls())
@@ -10,7 +45,6 @@ gc()
 source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
-source("MCFuncs.R")
 library(bench)
 true_theta <- list(
   d = 0,
@@ -64,11 +98,15 @@ state_space <- list(
   
 # inputs are data, state_space, m
 
-
+start_time <- Sys.time()
 mark(
   kalman_filter(data, state_space, m),
   iterations = 5
 )
+end_time <- Sys.time()
+cat("\nRuntime:",
+    round(difftime(end_time, start_time, units = "mins"), 2),
+    "minutes\n\n")
 ```
 
 # Neg_loglik
@@ -78,7 +116,6 @@ gc()
 source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
-source("MCFuncs.R")
 library(bench)
 true_theta <- list(
   d = 0,
@@ -117,10 +154,15 @@ D <- as.matrix(dist(coords))
 
 # par, data, m, n_side, D
 
+start_time <- Sys.time()
 mark(
   neg_loglik(hat_theta, data, m, n_side, D),
   iterations = 5
 )
+end_time <- Sys.time()
+cat("\nRuntime:",
+    round(difftime(end_time, start_time, units = "mins"), 2),
+    "minutes\n\n")
 ```
 
 
@@ -150,9 +192,9 @@ hat_theta <- list(
   rho = 0.5
 )
 
-T_len = 250
+T_len = 100
 m = 5
-n_side = 10
+n_side = 5
 n_loc = n_side^2
 
 bounds = get_bounds(hat_theta)
@@ -160,10 +202,15 @@ lower = bounds$lower
 upper = bounds$upper
 # i, true_theta, start_vals, T_len, n_side, m, lower, upper
 
+start_time <- Sys.time()
 mark(
   mc_one_run(1, true_theta, hat_theta, T_len, n_side, m, lower, upper),
   iterations = 5
 )
+end_time <- Sys.time()
+cat("\nRuntime:",
+    round(difftime(end_time, start_time, units = "mins"), 2),
+    "minutes\n\n")
 ```
 
 

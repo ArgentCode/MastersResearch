@@ -13,6 +13,7 @@ library(parallel)
 source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
+source("MCFuncs.R")
 ```
 
 
@@ -45,10 +46,10 @@ true_theta <- list(
 # -------------------------
 # Dimensions
 # -------------------------
-T_len <- 150
-n_side <- 3
+T_len <- 100
+n_side <- 10
 N <- n_side^2
-m <- 10
+m <- 5
 
 # -------------------------
 # 1️⃣ Build spatial grid
@@ -108,16 +109,12 @@ Y <- X + W
 mat <- Y
 ```
 
-# First Smoke Test
+# Likelihood testing
 
 ```{r}
 # -------------------------
 # Smoke test: single likelihood evaluation
 # -------------------------
-
-m <- 10
-n_loc <- nrow(mat)
-n_side <- 3  # since 3x3 grid
 
 # Parameter guess
 thetahat <- list(
@@ -156,7 +153,7 @@ Sigma_eta_hat <- thetahat$sigma2_eta *
 # 3️⃣ Build state-space
 # -------------------------
 state_space <- create_state_space(
-  n_loc = n_loc,
+  n_loc = N,
   m = m,
   sigma2_w = thetahat$sigma2_w,
   psi = psi,
@@ -175,31 +172,118 @@ loglik_value <- kalman_filter(
 loglik_value
 ```
 
+```{r}
+neg_loglik(thetahat, mat, m, n_side, D)
+```
 
 
-## And run?
+
+
+
+
+# Optimization testing
 
 ```{r}
-thetahat <- c(
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+source("MCFuncs.R")
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.35,
+  theta = 0.35,
+  sigma2_eta = 3,
+  sigma2_w = 0,
+  rho = 0.7
+)
+
+theta <- list(
   phihat = 0.5,
   thetahat = 0.5,
   sigma2_eta = 1,
   rho = 0.5
 )
 
+# -------------------------
+# Dimensions
+# -------------------------
+T_len <- 10
+n_side <- 5
+N = n_side^2
+m <- 5
+
+mat <- simulate_artfima_spatial(
+  T_len = T_len,
+  n_side = n_side,
+  m = m,
+  true_theta = true_theta
+)
+coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+coords <- as.matrix(coords)
+
+D <- as.matrix(dist(coords))
+
+
+bounds = get_bounds(thetahat)
+lower = bounds$lower
+upper = bounds$upper
+
+
 fit <- nlminb(
-  start = thetahat,
+  start = theta,
   objective = neg_loglik,
   data = mat,
-  m = 10,
-  n_side = 3,
+  m = m,
+  n_side = n_side,
   # phihat, thetahat, sigma2_eta, sigma2_w, rho
-  lower = c(-0.99, -0.99, 1e-6, 1e-6, 1e-6),
-  upper = c(0.99, 0.99, 10, 10, 10)
+  lower = lower,
+  upper = upper,
+  D=D
 )
 
 unlist(true_theta)
 fit
+```
+
+# MC One Run
+
+```{r}
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+source("MCFuncs.R")
+
+## Setup 
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.35,
+  theta = 0.35,
+  sigma2_eta = 3,
+  sigma2_w = 0,
+  rho = 0.7
+)
+
+# -------------------------
+# Dimensions
+# -------------------------
+T_len <- 10
+n_side <- 3
+m <- 5
+  
+# Parameter guess
+thetahat <- c(
+  phihat = 0.5,
+  thetahat = 0.5,
+  sigma2_eta = 1,
+  rho = 0.5
+)
+bounds = get_bounds(thetahat)
+lower = bounds$lower
+upper = bounds$upper
+
+mc_one_run(1, true_theta, thetahat, T_len, n_side, m, lower, upper)
 ```
 
 ## Monte Carlo Experiment
