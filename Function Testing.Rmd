@@ -222,14 +222,26 @@ hat_theta <- list(
 
 T_len = 50
 m = 5
-n_side = 10
+n_side = 5
+
+
+  
+if (n_side > 1) {
+  
+  coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+  coords <- as.matrix(coords)
+  
+  D <- as.matrix(dist(coords))
+} else {
+  D <- null
+}
 
 bounds = get_bounds(hat_theta)
 lower = bounds$lower
 upper = bounds$upper
 # i, true_theta, start_vals, T_len, n_side, m, lower, upper
 
-print(peakRAM(mc_one_run(1, true_theta, hat_theta, T_len, n_side, m, lower, upper)))
+print(peakRAM(mc_one_run(1, true_theta, hat_theta, T_len, n_side, m, lower, upper, D)))
 ```
 # Run MC 
 
@@ -243,6 +255,7 @@ source("MCFuncs.R")
 library(foreach)
 library(doParallel)
 library(peakRAM)
+library(beepr)
 true_theta <- list(
   d = 0,
   lambda = 0,

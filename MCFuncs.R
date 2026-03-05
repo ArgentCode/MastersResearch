@@ -1,7 +1,7 @@
 library(foreach)
 library(doParallel)
 
-mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper) {
+mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper, D) {
   
   # Simulate
   mat <- simulate_artfima_spatial(
@@ -10,16 +10,6 @@ mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper
     m = m,
     true_theta = true_theta
   )
-  
-  if (n_side > 1) {
-    
-    coords <- expand.grid(x = 1:n_side, y = 1:n_side)
-    coords <- as.matrix(coords)
-    
-    D <- as.matrix(dist(coords))
-  } else {
-    D <- null
-  }
   
   # Estimate
   fit <- tryCatch(
@@ -51,6 +41,16 @@ run_MC <- function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = N
     upper <- bounds$upper
   }
   
+  if (n_side > 1) {
+    
+    coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+    coords <- as.matrix(coords)
+    
+    D <- as.matrix(dist(coords))
+  } else {
+    D <- null
+  }
+  
   doParallel::registerDoParallel(cluster)
   
   start_time <- Sys.time()
@@ -70,7 +70,8 @@ run_MC <- function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = N
         n_side = n_side,
         m = m,
         lower = lower,
-        upper = upper
+        upper = upper,
+        D=D
       )
       
       if (any(!is.finite(res))) {
