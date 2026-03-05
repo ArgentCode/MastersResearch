@@ -9,7 +9,7 @@ rm(list=ls())
 gc()
 source("ArtfimaCausal.R")
 source("Data_Creation_Funcs.R")
-library(bench)
+library(peakRAM)
 true_theta <- list(
   d = 0,
   lambda = 0,
@@ -24,18 +24,62 @@ T_len = 250
 m = 10
 n_side = 10
 
-
-start_time <- Sys.time()
-mark(
-  simulate_artfima_spatial(T_len, n_side, m, true_theta),
-  iterations = 5
-)
-end_time <- Sys.time()
-cat("\nRuntime:",
-    round(difftime(end_time, start_time, units = "secs"), 2),
-    "seconds\n\n")
-  
+print(peakRAM(simulate_artfima_spatial(T_len, n_side, m, true_theta)))
 ```
+
+# Create State Space
+```{r}
+rm(list=ls())
+gc()
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFuncsOld.R")
+source("Data_Creation_Funcs.R")
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+hat_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.5,
+  theta = 0.5,
+  sigma2_eta = 0.75,
+  rho = 0.5
+)
+
+T_len = 250
+m = 10
+n_side = 10
+n_loc = n_side^2
+data <- simulate_artfima_spatial(
+  T_len = T_len,
+  n_side = n_side,
+  m = m,
+  true_theta = true_theta
+)
+
+coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+coords <- as.matrix(coords)
+
+D <- as.matrix(dist(coords))
+Sigma_eta <- hat_theta$sigma2_eta * exp(-D / hat_theta$rho)
+
+psi <- psi_artfima(
+  m = m,
+  d = hat_theta$d,
+  lambda = hat_theta$lambda,
+  ar = hat_theta$phi,
+  ma = hat_theta$theta
+)
+
+print(peakRAM(create_state_space(n_loc, m, true_theta$sigma2_w, psi, Sigma_eta)))
+```
+
 
 
 # Kalman Filter
@@ -45,7 +89,7 @@ gc()
 source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
-library(bench)
+library(peakRAM)
 true_theta <- list(
   d = 0,
   lambda = 0,
@@ -95,18 +139,11 @@ state_space <- list(
   psi = psi,
   Sigma_eta = Sigma_eta
 )
+# state_space = create_state_space(n_loc, m, true_theta$sigma2_w, psi, Sigma_eta)
   
 # inputs are data, state_space, m
 
-start_time <- Sys.time()
-mark(
-  kalman_filter(data, state_space, m),
-  iterations = 5
-)
-end_time <- Sys.time()
-cat("\nRuntime:",
-    round(difftime(end_time, start_time, units = "mins"), 2),
-    "minutes\n\n")
+print(peakRAM(kalman_filter(data, state_space, m)))
 ```
 
 # Neg_loglik
@@ -116,7 +153,7 @@ gc()
 source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
-library(bench)
+library(peakRAM)
 true_theta <- list(
   d = 0,
   lambda = 0,
@@ -153,16 +190,7 @@ D <- as.matrix(dist(coords))
 # par is the parameters
 
 # par, data, m, n_side, D
-
-start_time <- Sys.time()
-mark(
-  neg_loglik(hat_theta, data, m, n_side, D),
-  iterations = 5
-)
-end_time <- Sys.time()
-cat("\nRuntime:",
-    round(difftime(end_time, start_time, units = "mins"), 2),
-    "minutes\n\n")
+print(peakRAM(neg_loglik(hat_theta, data, m, n_side, D)))
 ```
 
 
@@ -174,7 +202,7 @@ source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
 source("MCFuncs.R")
-library(bench)
+library(peakRAM)
 true_theta <- list(
   d = 0,
   lambda = 0,
@@ -193,25 +221,74 @@ hat_theta <- list(
 )
 
 T_len = 100
-m = 5
-n_side = 5
-n_loc = n_side^2
+m = 10
+n_side = 10
 
 bounds = get_bounds(hat_theta)
 lower = bounds$lower
 upper = bounds$upper
 # i, true_theta, start_vals, T_len, n_side, m, lower, upper
 
-start_time <- Sys.time()
-mark(
-  mc_one_run(1, true_theta, hat_theta, T_len, n_side, m, lower, upper),
-  iterations = 5
-)
-end_time <- Sys.time()
-cat("\nRuntime:",
-    round(difftime(end_time, start_time, units = "mins"), 2),
-    "minutes\n\n")
+print(peakRAM(mc_one_run(1, true_theta, hat_theta, T_len, n_side, m, lower, upper)))
 ```
+# Run MC 
+
+```{r}
+rm(list=ls())
+gc()
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+source("MCFuncs.R")
+library(doParallel)
+library(foreach)
+library(peakRAM)
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+
+hat_theta <- list(
+  phi = 0.5,
+  theta = 0.5,
+  sigma2_eta = 0.75,
+  rho = 0.5
+)
+
+T = 50
+m = 5
+n_side = 5
+iter = 2
+
+bounds = get_bounds(hat_theta)
+lower = bounds$lower
+upper = bounds$upper
+
+n_cores <- 2
+
+cluster <- makeCluster(n_cores, timeout = 120, outfile = "")
+
+clusterExport(cluster, ls())  # export all objects
+invisible(clusterEvalQ(cluster, library(MASS)))  # needed for mvrnorm
+
+doParallel::registerDoParallel(cluster)
+
+
+print(peakRAM(
+  run_MC(cluster, true_theta, hat_theta, m,
+       iter, n_side, T, lower, upper)
+  ))
+
+stopCluster(cluster)
+
+beep(8)
+```
+
 
 
 
