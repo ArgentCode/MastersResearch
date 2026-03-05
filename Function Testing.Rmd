@@ -378,7 +378,6 @@ source("MCFuncs.R")
 library(foreach)
 library(doParallel)
 library(peakRAM)
-library(beepr)
 true_theta <- list(
   d = 0,
   lambda = 0,
@@ -421,8 +420,6 @@ print(peakRAM(
   ))
 
 stopCluster(cluster)
-
-beep(8)
 ```
 
 
