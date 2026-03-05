@@ -9,7 +9,7 @@ source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
 source("MCFuncs.R")
 
-n_cores <- detectCores() -1 
+n_cores <- 25
 
 cluster <- makeCluster(n_cores, timeout = 120, outfile = "")
 
@@ -44,9 +44,8 @@ cat("Started at:", format(Sys.time()), "\n\n")
 
 settings <- list(
   list(T_len = 50, n_side = 5, m = 5, iter = 30),
-  list(T_len = 75, n_side = 7, m = 6, iter = 30)
-  # list(T_len = 100, n_side = 10, m = 5, iter = 100),
-  # list(T_len = 250, n_side = 10, m = 5, iter = 100)
+  list(T_len = 100, n_side = 10, m = 5, iter = 100),
+  list(T_len = 250, n_side = 10, m = 5, iter = 100)
 )
 
 for (s in settings) {
