@@ -8,6 +8,16 @@ mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper
     true_theta = true_theta
   )
   
+  if (n_side > 1) {
+    
+    coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+    coords <- as.matrix(coords)
+    
+    D <- as.matrix(dist(coords))
+  } else {
+    D <- null
+  }
+  
   # Estimate
   fit <- tryCatch(
     nlminb(
@@ -17,7 +27,8 @@ mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper
       m = m,
       n_side = n_side,
       lower = lower,
-      upper = upper
+      upper = upper,
+      D=D
     ),
     error = function(e) return(NULL)
   )

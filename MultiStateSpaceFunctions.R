@@ -42,6 +42,7 @@ create_state_space <- function(
   ))
 }
 
+
 predict_step <- function(X_t, Omega_t, Sigma_eta, n_loc, state_dim, m) {
   
   # ---- Shift state ----
@@ -135,7 +136,7 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
       return(solve(S_t))
     }
   )
-  # 
+
   # eig_vals <- eigen(S_t, symmetric = TRUE, only.values = TRUE)$values
   # 
   # if (any(eig_vals <= 0)) {
@@ -179,13 +180,13 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
   n_loc <- length(Y_obs)
   likeli <- -0.5 * (log_det + quad_form + n_loc * log(2*pi))
   
-  if (any(!is.finite(innovation))) {
-    stop("Innovation not finite")
-  }
-
-  if (any(!is.finite(K_t))) {
-    stop("Kalman gain not finite")
-  }
+  # if (any(!is.finite(innovation))) {
+  #   stop("Innovation not finite")
+  # }
+  # 
+  # if (any(!is.finite(K_t))) {
+  #   stop("Kalman gain not finite")
+  # }
   
   return(list(
     X_updated = X_updated,
@@ -217,6 +218,7 @@ kalman_filter <- function(data, state_space, m) {
       n_loc, state_dim, m
     )
     
+    
     X_pred <- pred$X_pred
     Omega_pred <- pred$Omega_pred
     
@@ -242,7 +244,7 @@ kalman_filter <- function(data, state_space, m) {
   return(as.numeric(likelihood))
 }
 
-neg_loglik <- function(par, data, m, n_side) {
+neg_loglik <- function(par, data, m, n_side, D) {
   
   # ---- Extract parameters safely ----
   theta <- list(
@@ -285,11 +287,6 @@ neg_loglik <- function(par, data, m, n_side) {
     if (is.na(theta$rho) || theta$rho <= 0)
       return(1e12)
     
-    coords <- expand.grid(x = 1:n_side, y = 1:n_side)
-    coords <- as.matrix(coords)
-    
-    D <- as.matrix(dist(coords))
-    
     Sigma_eta <- theta$sigma2_eta * exp(-D / theta$rho)
   }
   
@@ -322,10 +319,10 @@ neg_loglik <- function(par, data, m, n_side) {
     }
   )
   
-  if (!is.finite(lik)) {
-    message("Non-finite likelihood\n")
-    return(1e12)
-  }
+  # if (!is.finite(lik)) {
+  #   message("Non-finite likelihood\n")
+  #   return(1e12)
+  # }
   
   # ---- Return negative log-likelihood ----
   return(-as.numeric(lik))

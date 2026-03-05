@@ -8,9 +8,9 @@ source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
 source("MCFuncs.R")
 
-n_cores <- min(detectCores() -1, 5)
+n_cores <- 5
 
-cluster <- makeCluster(n_cores, timeout = 120)
+cluster <- makeCluster(n_cores, timeout = 120, outfile = "")
 
 clusterExport(cluster, ls())  # export all objects
 invisible(clusterEvalQ(cluster, library(MASS)))  # needed for mvrnorm
@@ -40,8 +40,9 @@ cat("===========================\n\n")
 cat("Started at:", format(Sys.time()), "\n\n")
 
 settings <- list(
-  list(T_len = 25, n_side = 3, m = 5, iter = 5),
-  list(T_len = 100, n_side = 5, m = 5, iter = 5)
+  list(T_len = 25, n_side = 3, m = 5, iter = 3),
+  list(T_len = 100, n_side = 10, m = 5, iter = 5),
+  list(T_len = 250, n_side = 10, m = 5, iter = 5)
 )
 
 for (s in settings) {
