@@ -1,0 +1,170 @@
+---
+title: "Function Testing"
+output: html_document
+---
+
+# Kalman Filter
+```{r}
+rm(list=ls())
+gc()
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+source("MCFuncs.R")
+library(bench)
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+
+hat_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.5,
+  theta = 0.5,
+  sigma2_eta = 0.75,
+  rho = 0.5
+)
+
+T_len = 250
+m = 10
+n_side = 10
+n_loc = n_side^2
+data <- simulate_artfima_spatial(
+  T_len = T_len,
+  n_side = n_side,
+  m = m,
+  true_theta = true_theta
+)
+
+coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+coords <- as.matrix(coords)
+
+D <- as.matrix(dist(coords))
+Sigma_eta <- hat_theta$sigma2_eta * exp(-D / hat_theta$rho)
+
+psi <- psi_artfima(
+  m = m,
+  d = hat_theta$d,
+  lambda = hat_theta$lambda,
+  ar = hat_theta$phi,
+  ma = hat_theta$theta
+)
+
+state_space <- list(
+  R = diag(true_theta$sigma2_w, n_loc),
+  psi = psi,
+  Sigma_eta = Sigma_eta
+)
+  
+# inputs are data, state_space, m
+
+
+mark(
+  kalman_filter(data, state_space, m),
+  iterations = 5
+)
+```
+
+# Neg_loglik
+```{r}
+rm(list=ls())
+gc()
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+source("MCFuncs.R")
+library(bench)
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+
+hat_theta <- list(
+  phi = 0.5,
+  theta = 0.5,
+  sigma2_eta = 0.75,
+  rho = 0.5
+)
+
+T_len = 250
+m = 10
+n_side = 10
+n_loc = n_side^2
+data <- simulate_artfima_spatial(
+  T_len = T_len,
+  n_side = n_side,
+  m = m,
+  true_theta = true_theta
+)
+
+coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+coords <- as.matrix(coords)
+
+D <- as.matrix(dist(coords))
+
+# par is the parameters
+
+# par, data, m, n_side, D
+
+mark(
+  neg_loglik(hat_theta, data, m, n_side, D),
+  iterations = 5
+)
+```
+
+
+# MC One Run
+```{r}
+rm(list=ls())
+gc()
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+source("MCFuncs.R")
+library(bench)
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+
+hat_theta <- list(
+  phi = 0.5,
+  theta = 0.5,
+  sigma2_eta = 0.75,
+  rho = 0.5
+)
+
+T_len = 250
+m = 5
+n_side = 10
+n_loc = n_side^2
+
+bounds = get_bounds(hat_theta)
+lower = bounds$lower
+upper = bounds$upper
+# i, true_theta, start_vals, T_len, n_side, m, lower, upper
+
+mark(
+  mc_one_run(1, true_theta, hat_theta, T_len, n_side, m, lower, upper),
+  iterations = 5
+)
+```
+
+
+
