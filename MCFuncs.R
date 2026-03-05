@@ -43,96 +43,6 @@ mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper
   }
 }
 
-# run_MC = function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = NULL, upper = NULL) {
-# 
-#   if (is.null(upper)) {
-#     bounds = get_bounds(hat_theta)
-#     lower = bounds$lower
-#     upper = bounds$upper
-#   }
-# 
-#   chunk_size <- length(cluster)  # or maybe 20
-#   results_list <- vector("list", iter)
-# 
-#   start_time <- Sys.time()
-# 
-#   for (start in seq(1, iter, by = chunk_size)) {
-# 
-#     end <- min(start + chunk_size - 1, iter)
-# 
-#     # chunk_res <- parLapply(
-#     #   cluster,
-#     #   start:end,
-#     #   mc_one_run,
-#     #   true_theta = true_theta,
-#     #   start_vals = hat_theta,
-#     #   T_len = T,
-#     #   n_side = n_side,
-#     #   m = m,
-#     #   lower = lower,
-#     #   upper = upper
-#     # )
-# 
-#     results_list <- parLapply(
-#         cluster,
-#         1:iter,
-#         function(i){
-#           mc_one_run(
-#             i,
-#             true_theta = true_theta,
-#             start_vals = hat_theta,
-#             T_len = T,
-#             n_side = n_side,
-#             m = m,
-#             lower = lower,
-#             upper = upper
-#           )
-#         }
-#       )
-# 
-#     results_list[start:end] <- chunk_res
-# 
-#     message(
-#       sprintf(
-#         "Completed %d of %d | Elapsed: %.2f mins",
-#         end,
-#         iter,
-#         as.numeric(difftime(Sys.time(), start_time, units = "mins"))
-#       )
-#     )
-#   }
-# 
-#   estimates <- do.call(rbind, results_list)
-#   true_vec <- unlist(true_theta)[names(hat_theta)]
-# 
-#   mean_est <- colMeans(estimates, na.rm = TRUE)
-#   sd_est <- apply(estimates, 2, sd, na.rm = TRUE)
-# 
-#   bias <- mean_est - true_vec
-#   rel_bias <- ifelse(true_vec == 0, NA, bias / true_vec)
-# 
-#   mse <- colMeans(
-#     (estimates -
-#        matrix(true_vec,
-#               nrow = iter,
-#               ncol = length(true_vec),
-#               byrow = TRUE))^2,
-#     na.rm = TRUE
-#   )
-#   SqrtMSE = sqrt(mse)
-# 
-#   results <- rbind(
-#     True = true_vec,
-#     Mean = mean_est,
-#     sd = sd_est,
-#     RelBias = rel_bias,
-#     SqrtMSE = SqrtMSE,
-#     starting = hat_theta
-#   )
-# 
-#   return(round(results,4))
-# }
-
 run_MC <- function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = NULL, upper = NULL) {
   
   if (is.null(upper)) {
@@ -144,26 +54,7 @@ run_MC <- function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = N
   doParallel::registerDoParallel(cluster)
   
   start_time <- Sys.time()
-  
-  # estimates <- foreach::foreach(
-  #   i = 1:iter,
-  #   .combine = rbind,
-  #   .packages = c()   # add packages here if workers need them
-  # ) %dopar% {
-  #   
-  #   res <- mc_one_run(
-  #     i,
-  #     true_theta = true_theta,
-  #     start_vals = hat_theta,
-  #     T_len = T,
-  #     n_side = n_side,
-  #     m = m,
-  #     lower = lower,
-  #     upper = upper
-  #   )
-  #   
-  #   res
-  # }
+
   estimates <- foreach(
     i = 1:iter,
     .combine = rbind
@@ -171,7 +62,7 @@ run_MC <- function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = N
     
     tryCatch({
       
-      mc_one_run(
+      res <- mc_one_run(
         i,
         true_theta = true_theta,
         start_vals = hat_theta,
@@ -182,13 +73,16 @@ run_MC <- function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = N
         upper = upper
       )
       
+      if (any(!is.finite(res))) {
+        stop(paste("Non-finite result on iteration", i))
+      }
+      
+      res
+      
     }, error = function(e) {
       
       msg <- paste("Worker error on iteration", i, ":", e$message)
       cat(msg, "\n")
-      flush.console()
-      
-      stop(msg)
     })
   }
   
@@ -228,6 +122,7 @@ run_MC <- function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = N
     SqrtMSE = SqrtMSE,
     starting = starting
   )
+  
   
   return(round(results,4))
 }
@@ -275,7 +170,6 @@ run_one_setting <- function(cluster, true_theta, hat_theta,
                       m, iter, n_side, T_len)
   
   end_time <- Sys.time()
-  
   print(results)
   
   cat("\nRuntime:",

@@ -220,8 +220,8 @@ hat_theta <- list(
   rho = 0.5
 )
 
-T_len = 100
-m = 10
+T_len = 50
+m = 5
 n_side = 10
 
 bounds = get_bounds(hat_theta)
