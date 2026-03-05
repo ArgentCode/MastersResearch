@@ -324,7 +324,7 @@ neg_loglik <- function(par, data, m, n_side, D) {
   #   return(1e12)
   # }
   
-  message(lik)
+  # message(lik)
   
   # ---- Return negative log-likelihood ----
   return(-as.numeric(lik))

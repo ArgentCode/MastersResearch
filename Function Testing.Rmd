@@ -240,8 +240,8 @@ source("ArtfimaCausal.R")
 source("MultiStateSpaceFunctions.R")
 source("Data_Creation_Funcs.R")
 source("MCFuncs.R")
-library(doParallel)
 library(foreach)
+library(doParallel)
 library(peakRAM)
 true_theta <- list(
   d = 0,
