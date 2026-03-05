@@ -3,6 +3,8 @@ title: "Function Testing"
 output: html_document
 ---
 
+
+
 # Simulate Data
 ```{r}
 rm(list=ls())
@@ -26,6 +28,127 @@ n_side = 10
 
 print(peakRAM(simulate_artfima_spatial(T_len, n_side, m, true_theta)))
 ```
+
+# predict Step
+```{r}
+rm(list=ls())
+gc()
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+library(peakRAM)
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+
+hat_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.5,
+  theta = 0.5,
+  sigma2_eta = 0.75,
+  rho = 0.5
+)
+
+T_len = 250
+m = 10
+n_side = 10
+n_loc = n_side^2
+state_dim <- (m + 1) * n_loc
+
+X_t <- matrix(0, state_dim, 1)
+Omega_t <- diag(500, state_dim)
+
+
+coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+coords <- as.matrix(coords)
+
+D <- as.matrix(dist(coords))
+Sigma_eta <- hat_theta$sigma2_eta * exp(-D / hat_theta$rho)
+
+
+state_space <- list(
+  R = diag(true_theta$sigma2_w, n_loc),
+  # psi = psi,
+  Sigma_eta = Sigma_eta
+)
+
+print(peakRAM(predict_step(X_t, Omega_t, Sigma_eta, n_loc, state_dim, m)))
+```
+
+
+# Update step
+```{r}
+rm(list=ls())
+gc()
+source("ArtfimaCausal.R")
+source("MultiStateSpaceFunctions.R")
+source("Data_Creation_Funcs.R")
+library(peakRAM)
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+
+hat_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.5,
+  theta = 0.5,
+  sigma2_eta = 0.75,
+  rho = 0.5
+)
+
+T_len = 250
+m = 10
+n_side = 10
+n_loc = n_side^2
+state_dim <- (m + 1) * n_loc
+
+X_t <- matrix(0, state_dim, 1)
+Omega_t <- diag(500, state_dim)
+
+data = simulate_artfima_spatial(T_len, n_side, m, true_theta)
+
+
+coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+coords <- as.matrix(coords)
+
+D <- as.matrix(dist(coords))
+Sigma_eta <- hat_theta$sigma2_eta * exp(-D / hat_theta$rho)
+
+psi <- psi_artfima(
+  m = m,
+  d = hat_theta$d,
+  lambda = hat_theta$lambda,
+  ar = hat_theta$phi,
+  ma = hat_theta$theta
+)
+
+state_space <- list(
+  R = diag(true_theta$sigma2_w, n_loc),
+  psi = psi,
+  Sigma_eta = Sigma_eta
+)
+
+Y_obs <- matrix(data[, 4], ncol = 1)
+
+  
+
+print(peakRAM(update_step(X_t, Omega_t, Y_obs, state_space$psi, state_space$R)))
+```
+
 
 # Create State Space
 ```{r}
