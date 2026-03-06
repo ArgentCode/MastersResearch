@@ -129,7 +129,7 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
   Omega_updated <- Omega_pred - K_t %*% S_t %*% t(K_t)
   
   Omega_updated <- (Omega_updated + t(Omega_updated)) / 2 
-  if (any(diag(Omega_t) < -1e-10)) {
+  if (any(diag(Omega_updated) < -1e-10)) {
     stop("Omega_t lost positive definiteness")
   }
   
