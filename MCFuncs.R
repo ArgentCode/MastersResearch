@@ -3,6 +3,8 @@ library(doParallel)
 
 mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper, D) {
   
+  message(paste("Beginning Run:", i))
+  
   # Simulate
   mat <- simulate_artfima_spatial(
     T_len = T_len,
