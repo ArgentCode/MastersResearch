@@ -3,7 +3,12 @@ library(doParallel)
 
 mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper, D) {
   
-  message(paste("Beginning Run:", i))
+  
+  # message(paste("Beginning Run:", i))
+  
+  if (i %% 10 == 0) {
+    message(paste("Beginning Run:", i))
+  }
   
   # Simulate
   mat <- simulate_artfima_spatial(
@@ -52,8 +57,6 @@ run_MC <- function(cluster, true_theta, hat_theta, m, iter, n_side, T, lower = N
   } else {
     D <- null
   }
-  
-  doParallel::registerDoParallel(cluster)
   
   start_time <- Sys.time()
 

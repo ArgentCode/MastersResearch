@@ -18,14 +18,14 @@ predict_step <- function(X_t, Omega_t, Sigma_eta, n_loc, state_dim, m) {
   # O(m^3N^3) -> O(m^2N^2)
   Omega_pred <- matrix(0, state_dim, state_dim)
   
-  for (i in 1:m) {
-    for (j in 1:m) {
+  for (i in 0:(m-1)) {
+    for (j in 0:(m-1)) {
       
-      row_new <- (i*n_loc + 1):((i+1)*n_loc)
-      col_new <- (j*n_loc + 1):((j+1)*n_loc)
+      row_new <- ((i+1)*n_loc + 1):((i+2)*n_loc)
+      col_new <- ((j+1)*n_loc + 1):((j+2)*n_loc)
       
-      row_old <- ((i-1)*n_loc + 1):(i*n_loc)
-      col_old <- ((j-1)*n_loc + 1):(j*n_loc)
+      row_old <- (i*n_loc + 1):((i+1)*n_loc)
+      col_old <- (j*n_loc + 1):((j+1)*n_loc)
       
       Omega_pred[row_new, col_new] <-
         Omega_t[row_old, col_old]
@@ -127,6 +127,11 @@ update_step <- function(X_pred, Omega_pred, Y_obs,
   
   # Covariance update
   Omega_updated <- Omega_pred - K_t %*% S_t %*% t(K_t)
+  
+  Omega_updated <- (Omega_updated + t(Omega_updated)) / 2 
+  if (any(diag(Omega_t) < -1e-10)) {
+    stop("Omega_t lost positive definiteness")
+  }
   
   # Log-likelihood
   log_det <- as.numeric(determinant(S_t, logarithm = TRUE)$modulus)

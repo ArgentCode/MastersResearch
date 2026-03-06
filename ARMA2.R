@@ -49,11 +49,11 @@ settings <- list(
 )
 
 for (s in settings) {
-  run_one_setting(cluster, true_theta, hat_theta,
-                  m = s$m,
-                  iter = s$iter,
-                  n_side = s$n_side,
-                  T_len = s$T_len)
+  arma2 = run_one_setting(cluster, true_theta, hat_theta,
+                          m = s$m,
+                          iter = s$iter,
+                          n_side = s$n_side,
+                          T_len = s$T_len)
 }
 stopCluster(cluster)
 
