@@ -21,11 +21,11 @@ doParallel::registerDoParallel(cluster)
 true_theta <- list(
   d = 0,
   lambda = 0,
-  phi = 0.45,
-  theta = 0.3,
-  sigma2_eta = 0.5,
+  phi = 0.65,
+  theta = 0.8,
+  sigma2_eta = 0.1,
   sigma2_w = 0,
-  rho = 0.35
+  rho = 0.9
 )
 
 hat_theta <- c(
@@ -35,7 +35,7 @@ hat_theta <- c(
   rho = 0.5
 )
 
-output_file <- "ARMA1.txt"
+output_file <- "ARMA2.txt"
 sink(output_file)
 
 cat("Monte Carlo Study Results\n")

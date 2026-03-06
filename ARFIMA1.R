@@ -19,23 +19,23 @@ invisible(clusterEvalQ(cluster, library(MASS)))  # needed for mvrnorm
 doParallel::registerDoParallel(cluster)
 
 true_theta <- list(
-  d = 0,
+  d = 0.15,
   lambda = 0,
-  phi = 0.45,
-  theta = 0.3,
-  sigma2_eta = 0.5,
+  phi = 0,
+  theta = 0.45,
+  sigma2_eta = 1.5,
   sigma2_w = 0,
-  rho = 0.35
+  rho = 0.55
 )
 
 hat_theta <- c(
-  phi = 0.5,
+  d = 0.25,
   theta = 0.5,
   sigma2_eta = 0.75,
-  rho = 0.5
+  rho = 0.40
 )
 
-output_file <- "ARMA1.txt"
+output_file <- "ARFIMA1.txt"
 sink(output_file)
 
 cat("Monte Carlo Study Results\n")
