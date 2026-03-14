@@ -1,5 +1,3 @@
-
-library(MASS)
 simulate_artfima_univariate <- function(T, true_theta) {
   
   A <- artsim(

@@ -6,7 +6,7 @@ mc_one_run <- function(i, true_theta, start_vals, T_len, n_side, m, lower, upper
   
   # message(paste("Beginning Run:", i))
   
-  if (i %% 10 == 0) {
+  if (i %% 5 == 0) {
     message(paste("Beginning Run:", i))
   }
   

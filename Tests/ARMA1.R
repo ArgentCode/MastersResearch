@@ -21,11 +21,11 @@ doParallel::registerDoParallel(cluster)
 true_theta <- list(
   d = 0,
   lambda = 0,
-  phi = 0.65,
-  theta = 0.8,
-  sigma2_eta = 0.1,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
   sigma2_w = 0,
-  rho = 0.9
+  rho = 0.35
 )
 
 hat_theta <- c(
@@ -35,7 +35,7 @@ hat_theta <- c(
   rho = 0.5
 )
 
-output_file <- "ARMA2.txt"
+output_file <- "ARMA1.txt"
 sink(output_file)
 
 cat("Monte Carlo Study Results\n")
@@ -43,17 +43,17 @@ cat("===========================\n\n")
 cat("Started at:", format(Sys.time()), "\n\n")
 
 settings <- list(
-  list(T_len = 50, n_side = 5, m = 5, iter = 20),
-  list(T_len = 100, n_side = 10, m = 5, iter = 100),
-  list(T_len = 250, n_side = 10, m = 5, iter = 100)
+  list(T_len = 80, n_side = 8, m = 5, iter = 10)
+  # list(T_len = 100, n_side = 10, m = 5, iter = 100),
+  # list(T_len = 250, n_side = 10, m = 5, iter = 100)
 )
 
 for (s in settings) {
-  arma2 = run_one_setting(cluster, true_theta, hat_theta,
-                          m = s$m,
-                          iter = s$iter,
-                          n_side = s$n_side,
-                          T_len = s$T_len)
+  run_one_setting(cluster, true_theta, hat_theta,
+                  m = s$m,
+                  iter = s$iter,
+                  n_side = s$n_side,
+                  T_len = s$T_len)
 }
 stopCluster(cluster)
 
