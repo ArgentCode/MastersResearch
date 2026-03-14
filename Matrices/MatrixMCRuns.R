@@ -62,3 +62,94 @@ get_bounds <- function(hat_theta) {
   upper <- upper_template[names(hat_theta)]
   list(lower = lower, upper = upper)
 }
+
+run_MC <- function(true_theta, hat_theta, m, iter, n_side, T_len, lower = NULL, upper = NULL) {
+  
+  if (is.null(upper)) {
+    bounds <- get_bounds(hat_theta)
+    lower <- bounds$lower
+    upper <- bounds$upper
+  }
+  
+  if (n_side > 1) {
+    
+    coords <- expand.grid(x = 1:n_side, y = 1:n_side)
+    coords <- as.matrix(coords)
+    
+    D <- as.matrix(dist(coords))
+  } else {
+    D <- null
+  }
+  
+  start_time <- Sys.time()
+  
+  estimates = matrix(NA, nrow = iter, ncol = length(hat_theta))
+  for (i in 1:iter) {
+    tryCatch({
+      
+      res <- mc_one_run(
+        i,
+        true_theta = true_theta,
+        start_vals = hat_theta,
+        T_len = T_len,
+        n_side = n_side,
+        m = m,
+        lower = lower,
+        upper = upper,
+        D=D
+      )
+      
+      if (any(!is.finite(res))) {
+        stop(paste("Non-finite result on iteration", i))
+      }
+      
+      estimates[i,] = res
+      
+    }, error = function(e) {
+      
+      msg <- paste("Worker error on iteration", i, ":", e$message)
+      cat(msg, "\n")
+    })
+    
+  }
+  
+  message(
+    sprintf(
+      "Finished %d simulations | Total time: %.2f mins",
+      iter,
+      as.numeric(difftime(Sys.time(), start_time, units = "mins"))
+    )
+  )
+  
+  true_vec <- unlist(true_theta)[names(hat_theta)]
+  
+  mean_est <- colMeans(estimates, na.rm = TRUE)
+  sd_est <- apply(estimates, 2, sd, na.rm = TRUE)
+  
+  bias <- mean_est - true_vec
+  rel_bias <- ifelse(true_vec == 0, NA, bias / true_vec)
+  
+  mse <- colMeans(
+    (estimates -
+       matrix(true_vec,
+              nrow = iter,
+              ncol = length(true_vec),
+              byrow = TRUE))^2,
+    na.rm = TRUE
+  )
+  
+  SqrtMSE <- sqrt(mse)
+  starting <- unlist(hat_theta)[names(hat_theta)]
+  
+  results <- rbind(
+    True = true_vec,
+    Mean = mean_est,
+    sd = sd_est,
+    RelBias = rel_bias,
+    SqrtMSE = SqrtMSE,
+    starting = starting
+  )
+  
+  
+  return(round(results,4))
+}

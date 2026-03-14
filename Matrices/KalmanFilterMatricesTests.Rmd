@@ -33,7 +33,7 @@ rm(list=ls())
 gc()
 source("../Base Functions/ArtfimaCausal.R")
 source("../Base Functions/Data_Creation_Funcs.R")
-source("KalmanFilterMatrices.R")
+source("TestPredictFunction.R")
 true_theta <- list(
   d = 0,
   lambda = 0,
@@ -88,7 +88,7 @@ rm(list=ls())
 gc()
 source("../Base Functions/ArtfimaCausal.R")
 source("../Base Functions/Data_Creation_Funcs.R")
-source("KalmanFilterMatrices.R")
+source("TestPredictFunction.R")
 library(peakRAM)
 true_theta <- list(
   d = 0,
@@ -133,8 +133,10 @@ psi <- psi_artfima(
   ma = hat_theta$theta
 )
 
+Y_first = matrix(0, nrow= n_loc, ncol = 1)
+
 state_space = create_state_space(n_loc, m, psi, Sigma_eta, T_len)
-pred = predict_step(X_t, Omega_t, state_space)
+pred = predict_step(X_t, Omega_t, state_space, Y_first)
 
 if (sum(dim(pred$X_pred) == dim(X_t)) != 2) {
   stop("ERROR: X dimension out of sync")
@@ -150,7 +152,7 @@ rm(list=ls())
 gc()
 source("../Base Functions/ArtfimaCausal.R")
 source("../Base Functions/Data_Creation_Funcs.R")
-source("KalmanFilterMatrices.R")
+source("TestPredictFunction.R")
 library(peakRAM)
 true_theta <- list(
   d = 0,
@@ -179,6 +181,7 @@ state_dim <- (m + 1) * n_loc
 
 X_t <- matrix(0, state_dim, 1)
 Omega_t <- diag(500, state_dim)
+Y_first = matrix(0, nrow= n_loc, ncol = 1)
 
 
 data = simulate_artfima_spatial(T_len, n_side, m, true_theta)
@@ -199,7 +202,7 @@ psi <- psi_artfima(
 )
 
 state_space = create_state_space(n_loc, m, psi, Sigma_eta, T_len)
-pred = predict_step(X_t, Omega_t, state_space)
+pred = predict_step(X_t, Omega_t, state_space, Y_first)
 
 X_t = pred$X_pred
 Omega_t = pred$Omega_pred
@@ -229,7 +232,7 @@ rm(list=ls())
 gc()
 source("../Base Functions/ArtfimaCausal.R")
 source("../Base Functions/Data_Creation_Funcs.R")
-source("KalmanFilterMatrices.R")
+source("TestPredictFunction.R")
 library(peakRAM)
 true_theta <- list(
   d = 0,
@@ -250,9 +253,9 @@ hat_theta <- list(
   rho = 0.5
 )
 
-T_len = 100
-m = 10
-n_side = 10
+T_len = 250
+m = 5
+n_side = 5
 n_loc = n_side^2
 data <- simulate_artfima_spatial(
   T_len = T_len,
@@ -277,6 +280,7 @@ psi <- psi_artfima(
 
 state_space = create_state_space(n_loc, m, psi, Sigma_eta, T_len)
 likeli = kalman_filter(data, state_space)
+print(likeli)
 
 if (is.na(likeli)) { 
   stop("ERROR: Likeli not real!")
@@ -289,7 +293,7 @@ rm(list=ls())
 gc()
 source("../Base Functions/ArtfimaCausal.R")
 source("../Base Functions/Data_Creation_Funcs.R")
-source("KalmanFilterMatrices.R")
+source("TestPredictFunction.R")
 library(peakRAM)
 true_theta <- list(
   d = 0,
@@ -328,6 +332,8 @@ D <- as.matrix(dist(coords))
 
 # par, data, m, n_side, D
 neg_likeli = neg_loglik(hat_theta, data, m, D)
+
+print(neg_likeli)
 if (is.na(neg_likeli)) { 
   stop("ERROR: Likeli not real!")
 }
@@ -339,7 +345,7 @@ rm(list=ls())
 gc()
 source("../Base Functions/ArtfimaCausal.R")
 source("../Base Functions/Data_Creation_Funcs.R")
-source("KalmanFilterMatrices.R")
+source("TestPredictFunction.R")
 source("MatrixMCRuns.R")
 library(peakRAM)
 true_theta <- list(
@@ -377,11 +383,47 @@ bounds = get_bounds(hat_theta)
 lower = bounds$lower
 upper = bounds$upper
 # i, true_theta, start_vals, T_len, n_side, m, lower, upper
-print(unlist(true_theta))
+print(unlist(true_theta)[names(hat_theta)])
 mc_one_run(1, true_theta, hat_theta, T_len, n_side, m, lower, upper, D)
 
 # print(peakRAM())
 ```
+
+
+# MC test run
+```{r}
+rm(list=ls())
+gc()
+source("../Base Functions/ArtfimaCausal.R")
+source("../Base Functions/Data_Creation_Funcs.R")
+source("TestPredictFunction.R")
+source("MatrixMCRuns.R")
+library(peakRAM)
+true_theta <- list(
+  d = 0,
+  lambda = 0,
+  phi = 0.45,
+  theta = 0.3,
+  sigma2_eta = 0.5,
+  sigma2_w = 0,
+  rho = 0.35
+)
+
+hat_theta <- list(
+  phi = 0.5,
+  theta = 0.5,
+  sigma2_eta = 0.75,
+  rho = 0.5
+)
+
+T_len = 50
+m = 5
+n_side = 5
+iter = 10
+
+run_MC(true_theta, hat_theta, m, iter, n_side, T_len)
+```
+
 
 
 
