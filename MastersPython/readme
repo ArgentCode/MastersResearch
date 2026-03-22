@@ -1,0 +1,8 @@
+project/
+│
+├── parameters.py        # ψ weights, covariance functions
+├── state_space.py       # StateSpace class + builders
+├── kalman.py            # predict/update steps
+├── simulation.py        # data generation
+├── estimation.py        # likelihood / optimization
+└── main.py              # experiments
