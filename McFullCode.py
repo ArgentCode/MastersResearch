@@ -1,8 +1,8 @@
 import numpy as np
-from statsmodels.tsa.arima_process import arma2ma
 from scipy.spatial.distance import cdist
 from dataclasses import dataclass
 from scipy.optimize import minimize
+from statsmodels.tsa.arima_process import arma2ma
 
 ##############################
 # Parameters
@@ -12,35 +12,41 @@ from scipy.optimize import minimize
 def psi_frac(m, d, lam):
     psi = np.zeros(m + 1)
     psi[0] = 1.0
-    
+
     for k in range(1, m + 1):
         psi[k] = psi[k - 1] * ((k - 1 + d) / k) * np.exp(-lam)
-    
+
     return(psi)
 
 
-# ARMA components
 def psi_arma(m, ar=None, ma=None):
     if ar is None:
         ar = np.array([])
     if ma is None:
         ma = np.array([])
-    
-    # statsmodels uses opposite sign convention for AR
+
     ar = np.asarray(ar)
     ma = np.asarray(ma)
-    
-    psi_tail = arma2ma(ar=ar, ma=ma, lags=m)
-    
-    return(np.concatenate(([1.0], psi_tail)))
+
+    # --- correct polynomial form ---
+    ar_poly = np.r_[1.0, -ar]   # (1 - φB)
+    ma_poly = np.r_[1.0, ma]    # (1 + θB)
+
+    psi_tail = arma2ma(ar=ar_poly, ma=ma_poly, lags=m)
+
+    psi = np.empty(m + 1)
+    psi[0] = 1.0
+    psi[1:] = psi_tail[:m]
+
+    return psi
 
 
 def psi_artfima(m, d, lam, ar=None, ma=None):
     psi_f = psi_frac(m, d, lam)
     psi_a = psi_arma(m, ar, ma)
-    
+
     psi = np.convolve(psi_a, psi_f)[:m + 1]
-    
+
     return(psi)
 
 
@@ -82,17 +88,57 @@ def build_spatial_cov(coords, sigma2=1.0, rho=1.0, model=1):
 # Simulation
 ##############################
 
-def simulate_artfima(params, coords, T, m=50, burnin=200):
+# def simulate_arma_spatial(params, coords, T, burnin=200):
+#     """
+#     Simulate ARMA(1,1) with spatially correlated innovations
+#     """
+#     N = coords.shape[0]
+
+#     # --- spatial covariance ---
+#     Sigma = build_spatial_cov(
+#         coords,
+#         sigma2=params.sigma2_eta,
+#         rho=params.rho,
+#         model=params.spatial_model
+#     )
+
+#     # --- innovations ---
+#     eta = np.random.multivariate_normal(
+#         mean=np.zeros(N),
+#         cov=Sigma,
+#         size=T + burnin
+#     )
+
+#     # --- process ---
+#     eps = np.zeros((T + burnin, N))
+
+#     phi = params.ar[0]
+#     theta = params.ma[0]
+
+#     for t in range(1, T + burnin):
+#         eps[t] = (
+#             phi * eps[t-1]
+#             + theta * eta[t-1]
+#             + eta[t]
+#         )
+
+#     return eps[burnin:]
+  
+def simulate_artfima_spatial(params, coords, T, m=50, burnin=200):
     """
-    Simulate spatio-temporal ARTFIMA process.
-    
-    Returns
-    -------
-    Z : (T, N) array
+    Fully consistent simulation using ψ representation
+    (works for both ARMA and ARTFIMA)
     """
-    
     N = coords.shape[0]
-    
+
+    # --- spatial covariance ---
+    Sigma = build_spatial_cov(
+        coords,
+        sigma2=params.sigma2_eta,
+        rho=params.rho,
+        model=params.spatial_model
+    )
+
     # --- ψ weights ---
     psi = psi_artfima(
         m,
@@ -102,30 +148,22 @@ def simulate_artfima(params, coords, T, m=50, burnin=200):
         params.ma
     )
 
-    # --- spatial correlation (no variance) ---
-    R = build_spatial_cov(
-        coords,
-        sigma2=1.0,
-        rho=params.rho,
-        model=params.spatial_model
-    )
+    total_T = T + burnin + m
 
     # --- innovations ---
-    total_T = T + burnin
     eta = np.random.multivariate_normal(
         mean=np.zeros(N),
-        cov=params.sigma2_eta * R,
+        cov=Sigma,
         size=total_T
     )
-    
-    # --- generate process ---
+
+    # --- process ---
     Z = np.zeros((total_T, N))
-    
+
     for t in range(m, total_T):
-        for k in range(m + 1):
-            Z[t] += psi[k] * eta[t - k]
-    
-    # remove burn-in
+        # vectorized dot product instead of loop
+        Z[t] = psi @ eta[t - np.arange(m + 1)]
+
     return Z[burnin:]
 
 ##############################
@@ -177,7 +215,14 @@ class StateSpace:
         # --------------------------------------------------
         # ψ weights (MA representation)
         # --------------------------------------------------
-        psi = psi_artfima(m, params.d, params.lam, params.ar, params.ma)
+        #psi = psi_artfima(m, params.d, params.lam, params.ar, params.ma)
+        psi = psi_artfima(
+            m,
+            params.d,
+            params.lam,
+            params.ar,
+            params.ma
+        )
         
         # --------------------------------------------------
         # Temporal transition (shift innovations)
@@ -245,7 +290,17 @@ def kalman_loglik(params, Y, coords, m):
     
     # --- initialize ---
     X = np.zeros(dim)
-    Omega = np.eye(dim) * 1e3  # diffuse
+    # Omega = np.eye(dim) * 1e3  # diffuse
+    # Spatial covariance (FULL, with sigma2)
+    Sigma_S = build_spatial_cov(
+        coords,
+        sigma2=params.sigma2_eta,
+        rho=params.rho,
+        model=params.spatial_model
+    )
+    
+    # State covariance: block diagonal
+    Omega = np.kron(np.eye(m+1), Sigma_S)
     
     loglik = 0.0
     
@@ -446,10 +501,11 @@ def run_monte_carlo(
     # MONTE CARLO LOOP
     # --------------------------------------------------
     for i in range(n_iter):
-        print(f"Iteration {i+1}/{n_iter}")
-        
-        Y = simulate_artfima(true_params, coords, T)
-        
+        if (i + 1) % 5 == 0:
+          print(f"Iteration {i+1}/{n_iter}")
+
+        Y = simulate_artfima_spatial(true_params, coords, T, m)
+          
         try:
             est_params, result = estimate_params(
                 Y,
@@ -516,7 +572,6 @@ def run_monte_carlo(
     param_indices = [i for i, name in enumerate(names) if is_selected(name, free_params)]
     # param_indices = [i for i, name in enumerate(names) if name in free_params]
     selected_names = [names[i] for i in param_indices]
-    print("selected parameters:", selected_names)
 
     # Pretty labels (optional but nice)
     def pretty_name(name):
@@ -538,7 +593,6 @@ def run_monte_carlo(
         return name
 
     col_labels = [pretty_name(n) for n in selected_names]
-    print("pretty parameters:", col_labels)
 
     # --------------------------------------------------
     # Extract values

@@ -4,7 +4,7 @@ create_state_space <- function(
     psi,
     Sigma_eta,   # full N x N spatial covariance
     T_len,
-    sigma2_w = 0.000001
+    sigma2_w = 0
 ) {
   
   state_dim <- (m + 1) * n_loc
@@ -137,7 +137,6 @@ update_step <- function(state_space, X_pred, Omega_pred, Y_obs) {
   log_det <- as.numeric(determinant(S_t, logarithm = TRUE)$modulus)
   quad_form <- as.numeric(t(innovation) %*% S_inv %*% innovation)
   
-  n_loc <- length(Y_obs)
   likeli <- -0.5 * (log_det + quad_form + n_loc * log(2*pi))
   
   if (any(!is.finite(innovation))) {
@@ -220,7 +219,7 @@ neg_loglik <- function(par, data, m, D) {
   
   # ---- Hard constraints ----
   if (theta$sigma2_eta <= 0 ||
-      theta$sigma2_w <= 0 ||
+      theta$sigma2_w < 0 ||
       abs(theta$phi) >= 0.999 ||
       abs(theta$theta) >= 0.999) {
     return(1e12)

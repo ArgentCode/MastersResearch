@@ -65,6 +65,8 @@ get_bounds <- function(hat_theta) {
 
 run_MC <- function(true_theta, hat_theta, m, iter, n_side, T_len, lower = NULL, upper = NULL) {
   
+  message(paste("Beggining run at: ", format(Sys.time())))
+  
   if (is.null(upper)) {
     bounds <- get_bounds(hat_theta)
     lower <- bounds$lower

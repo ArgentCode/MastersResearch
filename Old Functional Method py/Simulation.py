@@ -4,7 +4,7 @@ from Kalman import *
 from State_Space import *
 
 
-def simulate_artfima(params, coords, T, m=50, burnin=200):
+def simulate_artfima(params, coords, T, m, burnin=200):
     """
     Simulate spatio-temporal ARTFIMA process.
     
@@ -12,6 +12,8 @@ def simulate_artfima(params, coords, T, m=50, burnin=200):
     -------
     Z : (T, N) array
     """
+
+    m = m*100
     
     N = coords.shape[0]
     

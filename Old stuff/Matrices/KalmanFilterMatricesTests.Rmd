@@ -34,6 +34,7 @@ gc()
 source("../Base Functions/ArtfimaCausal.R")
 source("../Base Functions/Data_Creation_Funcs.R")
 source("TestPredictFunction.R")
+library(peakRAM)
 true_theta <- list(
   d = 0,
   lambda = 0,
@@ -77,9 +78,9 @@ psi <- psi_artfima(
   ma = hat_theta$theta
 )
 
-# create_state_space(n_loc, m, psi, Sigma_eta, T_len)
+state_space = create_state_space(n_loc, m, psi, Sigma_eta, T_len)
 
-print(peakRAM(create_state_space(n_loc, m, psi, Sigma_eta, T_len)))
+# print(peakRAM(create_state_space(n_loc, m, psi, Sigma_eta, T_len)))
 ```
 
 # predict Step

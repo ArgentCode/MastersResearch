@@ -9,9 +9,9 @@ def main():
     # --------------------------------------------------
     # SETTINGS
     # --------------------------------------------------
-    T = 100
+    T = 50
     m = 5
-    N = 25
+    N = 10
     n_iter = 10
     
     # --------------------------------------------------
@@ -38,7 +38,7 @@ def main():
         ma=[0.1],
         sigma2_eta=1.0,
         rho=0.6,
-        spatial_model=1,
+        spatial_model=2,
         tau2=0.0001               # FIXED
     )
     
@@ -55,6 +55,7 @@ def main():
     # --------------------------------------------------
     # RUN MONTE CARLO
     # --------------------------------------------------
+    output_file = "mc_test_1.txt"
     results = run_monte_carlo(
         true_params=true_params,
         init_params=init_params,
@@ -63,10 +64,10 @@ def main():
         m=m,
         free_params=free_params,
         n_iter=n_iter,
-        output_file="mc_test_1.txt"
+        output_file=output_file
     )
     
-    print("\n🔥 DONE. Check mc_test_1.txt 🔥")
+    print("\n DONE. Check " + output_file)
 
 
 if __name__ == "__main__":
