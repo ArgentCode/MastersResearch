@@ -3,6 +3,7 @@ from scipy.spatial.distance import cdist
 from dataclasses import dataclass
 from scipy.optimize import minimize
 from statsmodels.tsa.arima_process import arma2ma
+from datetime import datetime
 
 ##############################
 # Parameters
@@ -492,6 +493,8 @@ def run_monte_carlo(
     
     np.random.seed(0)
     
+    now = datetime.now()
+    
     theta_true = params_to_array(true_params)
     n_params = len(theta_true)
     
@@ -608,6 +611,13 @@ def run_monte_carlo(
     rmse_vals = [np.sqrt(x) for x in mse_vals]
 
     init_vals = pick(params_to_array(init_params))
+    
+    # -------------------------------------------------
+    # Time stuff
+    # -------------------------------------------------
+    
+    then = datetime.now()
+    runtime_minutes = (then - now).total_seconds() / 60
 
     # --------------------------------------------------
     # Print table
@@ -621,12 +631,18 @@ def run_monte_carlo(
         f.write("--------------------------------------------------\n")
         f.write("Monte Carlo Results\n")
         f.write("--------------------------------------------------\n\n")
+        
+        f.write(f"Run began at {now.strftime('%b %d, %Y at %I:%M:%S %p')}\n")
 
         f.write("Settings:\n")
         f.write(
             f"T = {T} | N = {coords.shape[0]} | m = {m} | "
-            f"iter = {n_iter} | valid = {iter_eff}\n"
+            f"iter = {n_iter} | valid = {iter_eff} | model={true_params.spatial_model}\n"
         )
+
+        f.write(f"Total runtime was {runtime_minutes:.2f} minutes\n")
+        
+        f.write(f"runtime was ")
         f.write(f"Free Params: {free_params}\n\n")
 
         # --------------------------------------------------
