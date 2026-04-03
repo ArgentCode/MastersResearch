@@ -18,9 +18,9 @@ def main():
     # TRUE PARAMETERS (ARMA(1,1))
     # --------------------------------------------------
     true_params = Parameters(
-        d=0.0,                 # FIXED
-        lam=0.0,               # FIXED
-        ar=[0.45],             # AR(1)
+        d=0.15,                 # FIXED
+        lam=0.001,               # FIXED
+        ar=[0],             # AR(1)
         ma=[0.3],              # MA(1)
         sigma2_eta=0.5,
         rho=0.35,

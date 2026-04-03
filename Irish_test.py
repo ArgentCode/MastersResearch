@@ -45,6 +45,48 @@ def harmonic_design_matrix(doy, K=3):
     
     return np.column_stack(X)
 
+def compute_CR_metrics(Y_test, forecasts, forecast_vars, station_codes):
+    """
+    Compute CR1, CR2, CR3 for each station.
+    
+    Parameters
+    ----------
+    Y_test         : (K, N) — observed test data
+    forecasts      : (K, N) — predicted means
+    forecast_vars  : (K, N) — predictive variances (Delta diagonal)
+    station_codes  : list of N station name strings
+    
+    Returns
+    -------
+    dict with keys 'CR1', 'CR2', 'CR3', each (N,) array
+    """
+    K, N = Y_test.shape
+
+    errors  = Y_test - forecasts          # (K, N)
+    errors2 = errors ** 2                 # (K, N)
+
+    sum_errors  = np.sum(errors,  axis=0)   # (N,)
+    sum_errors2 = np.sum(errors2, axis=0)   # (N,)
+    sum_vars    = np.sum(forecast_vars, axis=0)   # (N,)
+
+    CR1 = sum_errors  / np.sqrt(sum_vars)
+    CR2 = np.sqrt(sum_errors2 / sum_vars)
+    CR3 = np.sqrt(sum_errors2 / K)
+
+    # --- print table ---
+    col_w = 10
+    header = f"{'Station':<{col_w}}{'CR1':>{col_w}}{'CR2':>{col_w}}{'CR3':>{col_w}}"
+    print("\nOut-of-sample forecast metrics:")
+    print("-" * len(header))
+    print(header)
+    print("-" * len(header))
+    for i, code in enumerate(station_codes):
+        print(f"{code:<{col_w}}{CR1[i]:>{col_w}.4f}{CR2[i]:>{col_w}.4f}{CR3[i]:>{col_w}.4f}")
+    print("-" * len(header))
+    print(f"{'Mean':<{col_w}}{CR1.mean():>{col_w}.4f}{CR2.mean():>{col_w}.4f}{CR3.mean():>{col_w}.4f}")
+
+    return {"CR1": CR1, "CR2": CR2, "CR3": CR3}
+
 
 def main():
     np.random.seed(5473)
@@ -225,6 +267,8 @@ def main():
     for code, r in zip(station_codes, rmse):
         print(f"  {code}: {r:.4f}")
     print(f"Overall RMSE: {np.sqrt(np.mean((forecasts - Y_test)**2)):.4f}")
+
+    metrics = compute_CR_metrics(Y_test, forecasts, forecast_vars, station_codes)
 
 if __name__ == "__main__":
     main()
