@@ -358,6 +358,78 @@ def kalman_loglik(params, Y, coords, m):
     
     return loglik
 
+def kalman_forecast(params, Y_train, coords, m, Z):
+    """
+    Run Kalman filter over Y_train to get final state, then
+    forecast Z steps ahead with no observation updates.
+    
+    Parameters
+    ----------
+    params : Parameters
+    Y_train : (T, N) array — training data
+    coords  : (N, 2) array — spatial coordinates
+    m       : int — truncation lag
+    Z       : int — number of steps to forecast
+    
+    Returns
+    -------
+    forecasts      : (Z, N) array — predicted means
+    forecast_vars  : (Z, N) array — marginal predictive variances (diagonal of Delta_t)
+    """
+    T, N = Y_train.shape
+
+    # --- build state space (same as loglik) ---
+    ss = StateSpace.build_state_space(params, coords, m)
+    F, G, Q, R = ss.F, ss.G, ss.Q, ss.R
+
+    # --- initialize (same as loglik) ---
+    X = np.zeros(F.shape[0])
+    Sigma_S = build_spatial_cov(
+        coords,
+        sigma2=params.sigma2_eta,
+        rho=params.rho,
+        model=params.spatial_model
+    )
+    Omega = np.kron(np.eye(m + 1), Sigma_S)
+
+    # --------------------------------------------------
+    # Forward pass over training data
+    # (identical to kalman_loglik, just no likelihood accumulation)
+    # --------------------------------------------------
+    for t in range(T):
+        Y_pred = G @ X
+        v = Y_train[t] - Y_pred
+
+        eps = 1e-6
+        Delta = G @ Omega @ G.T + R + eps * np.eye(N)
+        Theta = F @ Omega @ G.T
+
+        X     = F @ X + Theta @ np.linalg.solve(Delta, v)
+        Omega = F @ Omega @ F.T + Q - Theta @ np.linalg.solve(Delta, Theta.T)
+        Omega = 0.5 * (Omega + Omega.T)
+
+    # --------------------------------------------------
+    # Forecast: step forward Z times with no observations
+    # X_{t+1} = F @ X_t  (no correction term since no Y)
+    # Omega_{t+1} = F @ Omega_t @ F.T + Q  (uncertainty grows)
+    # --------------------------------------------------
+    forecasts     = np.zeros((Z, N))
+    forecast_vars = np.zeros((Z, N))
+
+    for z in range(Z):
+        # Predicted observation
+        forecasts[z] = G @ X
+
+        # Predictive variance for observations
+        Delta = G @ Omega @ G.T + R + 1e-6 * np.eye(N)
+        forecast_vars[z] = np.diag(Delta)
+
+        # Step state forward (no update since no observation)
+        X     = F @ X
+        Omega = F @ Omega @ F.T + Q
+
+    return forecasts, forecast_vars
+
 ##############################
 # Estimation
 ##############################
@@ -426,8 +498,10 @@ def build_bounds(base_params, free_params):
             bounds.append((1e-4, 10))
         elif name == "sigma2_eta":
             bounds.append((1e-6, 10))
+        # elif name == "rho":
+        #     bounds.append((1e-4, 10))
         elif name == "rho":
-            bounds.append((1e-4, 10))
+            bounds.append((10, 2000)) # for Irish test
         elif name == "tau2":
             bounds.append((1e-6, 10))
         elif name in ["ar", "ma"]:
